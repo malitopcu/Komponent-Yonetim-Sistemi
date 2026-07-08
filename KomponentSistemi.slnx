@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="KomponentSistemi.Data/KomponentSistemi.Data.csproj" />
+  <Project Path="KomponentSistemi.Services/KomponentSistemi.Services.csproj" />
+  <Project Path="KomponentSistemi.UI/KomponentSistemi.UI.csproj" />
+</Solution>
