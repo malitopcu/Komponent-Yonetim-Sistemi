@@ -21,7 +21,6 @@ public class ValueNormalizer
     };
 
     // Para birimi işareti/kodu → ISO 4217 kodu.
-    // Anahtar büyük harfle aranacak, o yüzden hepsi büyük.
     private static readonly Dictionary<string, string> CurrencyMap = new()
     {
         ["€"] = "EUR", ["EUR"] = "EUR", ["EURO"] = "EUR",
@@ -52,6 +51,20 @@ public class ValueNormalizer
         string numberPart = match.Groups[1].Value;
         string unitPart = match.Groups[2].Value;
 
+        // ppm/ppb istisnası: "±25ppm" → 25e-6, "±500ppb" → 500e-9
+        // (yoksa ilk harf 'p' piko sanılır!)
+        if (unitPart.StartsWith("ppm", StringComparison.OrdinalIgnoreCase) ||
+            unitPart.StartsWith("ppb", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryParseNumber(numberPart, decimalSeparator, out double ppValue))
+                return null;
+
+            double factor = unitPart.StartsWith("ppm", StringComparison.OrdinalIgnoreCase)
+                ? 1e-6    // parts per million
+                : 1e-9;   // parts per billion
+            return ppValue * factor;
+        }
+
         // 3) Ondalık ayracına göre sayıyı çöz
         double number;
         if (!TryParseNumber(numberPart, decimalSeparator, out number))
@@ -61,14 +74,20 @@ public class ValueNormalizer
         if (unitPart.Length > 0)
         {
             string prefix = unitPart.Substring(0, 1); // ilk harf ön ek adayı
-            if (SiPrefixes.TryGetValue(prefix, out double multiplier))
+
+            // Önce birebir ara (M=mega, m=mili ayrımı korunur);
+            // bulunamazsa küçük/büyük harf varyantını dene (P→p, g→G)
+            bool found = SiPrefixes.TryGetValue(prefix, out double multiplier)
+                      || SiPrefixes.TryGetValue(prefix.ToLowerInvariant(), out multiplier)
+                      || SiPrefixes.TryGetValue(prefix.ToUpperInvariant(), out multiplier);
+
+            if (found)
                 number *= multiplier;
         }
 
         return number;
     }
 
-    // Sayıyı ondalık ayracına göre çözer. Binlik ayraçları temizler.
     // Sayıyı akıllıca çözer: hangi ayracın ondalık olduğunu değere bakarak tespit eder.
     private static bool TryParseNumber(string text, string decimalSeparator, out double result)
     {
@@ -125,6 +144,10 @@ public class ValueNormalizer
 
         // Büyük harfe çevir, fazla boşlukları sadeleştir
         s = s.Trim().ToUpperInvariant();
+
+        // "-", "" gibi dolgu değerler = "veri yok" → null döndür (DB'ye şive sokma)
+        if (s.Length == 0 || s == "-" || s == "N/A")
+            return null;
 
         // C0G ile NP0 aynı dielektrik → tek kanona indir
         if (s.Contains("C0G") || s.Contains("NP0"))

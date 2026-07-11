@@ -1,20 +1,77 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:KomponentSistemi.UI.ViewModels"
+        xmlns:svc="using:KomponentSistemi.Services"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="500"
         x:Class="KomponentSistemi.UI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="KomponentSistemi.UI">
+        Title="Komponent Yönetim Sistemi">
 
-    <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainWindowViewModel/>
-    </Design.DataContext>
+    <DockPanel Margin="10">
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <!-- ÜST: Filtre paneli -->
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,10">
+
+            <!-- 1. sıra: tip + metin + butonlar -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <ComboBox ItemsSource="{Binding Types}"
+                          SelectedItem="{Binding SelectedType}"
+                          PlaceholderText="Tip (tümü)"
+                          MinWidth="170">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="svc:ComponentTypeDto">
+                            <TextBlock Text="{Binding Name}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <TextBox Text="{Binding SearchText}"
+                         PlaceholderText="MPN / üretici ara"
+                         MinWidth="220"/>
+
+                <Button Content="Ara"     Command="{Binding SearchCommand}"/>
+                <Button Content="Temizle" Command="{Binding ResetCommand}"/>
+            </StackPanel>
+
+            <!-- 2. sıra: sayısal aralıklar -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Değer:" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding MinPrimaryText}" PlaceholderText="min (örn 1n)"   Width="120"/>
+                <TextBlock Text="–" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding MaxPrimaryText}" PlaceholderText="max (örn 100n)" Width="120"/>
+
+                <TextBlock Text="Gerilim:" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                <TextBox Text="{Binding MinSecondaryText}" PlaceholderText="min (V)" Width="100"/>
+                <TextBlock Text="–" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding MaxSecondaryText}" PlaceholderText="max (V)" Width="100"/>
+            </StackPanel>
+
+        </StackPanel>
+
+        <!-- ALT: durum çubuğu -->
+        <TextBlock DockPanel.Dock="Bottom"
+                   Text="{Binding Status}"
+                   Margin="0,8,0,0"/>
+
+        <!-- ORTA: sonuç tablosu (kalan tüm alanı doldurur) -->
+        <DataGrid ItemsSource="{Binding Components}"
+                  IsReadOnly="True"
+                  AutoGenerateColumns="False"
+                  GridLinesVisibility="All">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="#"          Binding="{Binding RowNo}"            Width="Auto"/>
+                <DataGridTextColumn Header="MPN"        Binding="{Binding Mpn}"              Width="2*"/>
+                <DataGridTextColumn Header="Üretici"    Binding="{Binding Manufacturer}"     Width="2*"/>
+                <DataGridTextColumn Header="Tip"        Binding="{Binding TypeName}"         Width="*"/>
+                <DataGridTextColumn Header="Değer (SI)" Binding="{Binding PrimaryValueSi}"   Width="*"/>
+                <DataGridTextColumn Header="Gerilim"    Binding="{Binding SecondaryValueSi}" Width="*"/>
+                <DataGridTextColumn Header="Teklif"     Binding="{Binding OfferCount}"       Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+    </DockPanel>
 
 </Window>

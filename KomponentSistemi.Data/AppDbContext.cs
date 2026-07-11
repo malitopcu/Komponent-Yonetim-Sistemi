@@ -31,6 +31,9 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Component>().HasIndex(c => c.PrimaryValueSi);
         modelBuilder.Entity<Component>().HasIndex(c => c.SecondaryValueSi);
         
+        modelBuilder.HasDbFunction(typeof(SqlJson).GetMethod(nameof(SqlJson.Extract))!)
+            .HasName("json_extract");
+        
         SeedData.Apply(modelBuilder);
     }
 }

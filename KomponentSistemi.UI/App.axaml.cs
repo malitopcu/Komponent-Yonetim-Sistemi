@@ -1,11 +1,9 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core;
-using Avalonia.Data.Core.Plugins;
-using System.Linq;
 using Avalonia.Markup.Xaml;
 using KomponentSistemi.UI.ViewModels;
 using KomponentSistemi.UI.Views;
+using KomponentSistemi.Services;
 
 namespace KomponentSistemi.UI;
 
@@ -22,10 +20,13 @@ public partial class App : Application
         {
             desktop.MainWindow = new MainWindow
             {
-                DataContext = new MainWindowViewModel(),
+                DataContext = new MainWindowViewModel(
+                    ServiceFactory.CreateComponentQueryService(),
+                    ServiceFactory.CreateSearchService()),
             };
         }
 
         base.OnFrameworkInitializationCompleted();
     }
+
 }

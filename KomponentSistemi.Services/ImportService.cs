@@ -14,7 +14,6 @@ public class ImportService
     }
 
     // Bir tipin parametrelerini (Key → tanım) veritabanından yükler.
-    // İçe aktarma sırasında "bu Key hangi sütuna gider" sorusunu buradan cevaplarız.
     private Dictionary<string, ParameterDefinition> LoadParameters(int componentTypeId)
     {
         return _db.ParameterDefinitions
@@ -28,7 +27,8 @@ public class ImportService
         Dictionary<string, string> row,
         int componentTypeId,
         Dictionary<string, ParameterDefinition> paramDefs,
-        List<string> unmapped)
+        List<string> unmapped,
+        Dictionary<string, string>? fixedParams)
     {
         var comp = new Component { ComponentTypeId = componentTypeId };
         var jsonParams = new Dictionary<string, object?>();
@@ -52,11 +52,13 @@ public class ImportService
                     double? num = _normalizer.NormalizeNumeric(rawValue);
                     if (def.HotColumn == "primary")        comp.PrimaryValueSi = num;
                     else if (def.HotColumn == "secondary") comp.SecondaryValueSi = num;
-                    else                                    jsonParams[paramKey] = num;
+                    else if (num.HasValue)                 jsonParams[paramKey] = num;
                 }
                 else // text / kategorik
                 {
-                    jsonParams[paramKey] = _normalizer.NormalizeCategorical(rawValue);
+                    var cat = _normalizer.NormalizeCategorical(rawValue);
+                    if (cat != null)
+                        jsonParams[paramKey] = cat;
                 }
                 continue;
             }
@@ -66,6 +68,17 @@ public class ImportService
 
             // 4) Hiçbiri → eşlenemedi
             unmapped.Add(header);
+        }
+
+        // Sabit parametreler: dosyada sütunu olmayan ama içe aktaranın bildiği
+        // bilgiler (örn. Zener dosyası → subtype=ZENER). CSV'den gelen kazanır.
+        if (fixedParams != null)
+        {
+            foreach (var (k, v) in fixedParams)
+            {
+                if (paramDefs.ContainsKey(k) && !jsonParams.ContainsKey(k))
+                    jsonParams[k] = _normalizer.NormalizeCategorical(v);
+            }
         }
 
         comp.ParamsJson = System.Text.Json.JsonSerializer.Serialize(jsonParams);
@@ -91,12 +104,12 @@ public class ImportService
     }
 
     // Ana metot: dosyayı okur, komponentleri kurar, upsert eder, kaydeder.
-    public async Task<ImportResult> ImportAsync(string filePath, int componentTypeId, string source, string? defaultCurrency = null)
+    public async Task<ImportResult> ImportAsync(string filePath, int componentTypeId, string source, string? defaultCurrency = null, Dictionary<string, string>? fixedParams = null)
     {
         var result = new ImportResult();
         var paramDefs = LoadParameters(componentTypeId);
 
-        // 1) Dosyayı oku (Gün 3'teki okuyucu)
+        // 1) Dosyayı oku
         var reader = new CsvImportReader();
         var readResult = reader.Read(filePath);
         result.Errors.AddRange(readResult.Errors);
@@ -109,7 +122,7 @@ public class ImportService
         foreach (var row in readResult.Rows)
         {
             var unmapped = new List<string>();
-            var comp = BuildComponent(row, componentTypeId, paramDefs, unmapped);
+            var comp = BuildComponent(row, componentTypeId, paramDefs, unmapped, fixedParams);
             foreach (var h in unmapped) unmappedSet.Add(h);
 
             // MPN yoksa bu satırı atla (kimliksiz komponent olmaz)
@@ -137,7 +150,7 @@ public class ImportService
                 existing.PrimaryValueSi = comp.PrimaryValueSi;
                 existing.SecondaryValueSi = comp.SecondaryValueSi;
                 existing.ParamsJson = comp.ParamsJson;
-                AddOrUpdateOffer(existing, row, source, defaultCurrency);   // ← DÜZELTİLDİ: comp değil, existing
+                AddOrUpdateOffer(existing, row, source, defaultCurrency);
                 result.Updated++;
             }
         }
@@ -170,8 +183,6 @@ public class ImportService
 
         // Öncelik: hücredeki işaret > kullanıcının verdiği varsayılan > null
         currency ??= defaultCurrency;
-
-        Console.WriteLine($"[DEBUG] {source} | fiyat={price} | birim={currency ?? "NULL"}");
 
         // Bu kaynaktan zaten teklif var mı?
         var offer = comp.Offers.FirstOrDefault(o => o.Source == source);
