@@ -11,10 +11,13 @@ public class AppDbContext : DbContext
     public DbSet<Offer> Offers => Set<Offer>();
     public DbSet<ImportProfile> ImportProfiles => Set<ImportProfile>();
 
-    // Veritabanı dosyasının yeri ve türü
     protected override void OnConfiguring(DbContextOptionsBuilder options)
     {
-        options.UseSqlite("Data Source=components.db");
+        // Veritabanını kullanıcının ana klasöründe sabit bir yere koy
+        // (böylece hangi klasörden çalışırsa çalışsın aynı dosyaya bakar)
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string dbPath = System.IO.Path.Combine(home, "KomponentSistemi", "components.db");
+        options.UseSqlite($"Data Source={dbPath}");
     }
 
     // İlişkiler, indeksler, ince ayarlar
@@ -25,8 +28,9 @@ public class AppDbContext : DbContext
             .HasIndex(c => new { c.Mpn, c.Manufacturer })
             .IsUnique();
 
-        // Sıcak arama sütunlarına indeks — hızlı aralık sorgusu
-        modelBuilder.Entity<Component>().HasIndex(c => c.CapacitanceF);
-        modelBuilder.Entity<Component>().HasIndex(c => c.VoltageV);
+        modelBuilder.Entity<Component>().HasIndex(c => c.PrimaryValueSi);
+        modelBuilder.Entity<Component>().HasIndex(c => c.SecondaryValueSi);
+        
+        SeedData.Apply(modelBuilder);
     }
 }

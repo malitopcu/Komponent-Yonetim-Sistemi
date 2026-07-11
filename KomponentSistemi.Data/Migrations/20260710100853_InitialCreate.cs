@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace KomponentSistemi.Data.Migrations
 {
     /// <inheritdoc />
@@ -50,8 +52,8 @@ namespace KomponentSistemi.Data.Migrations
                     Mpn = table.Column<string>(type: "TEXT", nullable: false),
                     Manufacturer = table.Column<string>(type: "TEXT", nullable: false),
                     ComponentTypeId = table.Column<int>(type: "INTEGER", nullable: false),
-                    CapacitanceF = table.Column<double>(type: "REAL", nullable: true),
-                    VoltageV = table.Column<double>(type: "REAL", nullable: true),
+                    PrimaryValueSi = table.Column<double>(type: "REAL", nullable: true),
+                    SecondaryValueSi = table.Column<double>(type: "REAL", nullable: true),
                     ParamsJson = table.Column<string>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
@@ -76,6 +78,7 @@ namespace KomponentSistemi.Data.Migrations
                     Unit = table.Column<string>(type: "TEXT", nullable: true),
                     DataType = table.Column<string>(type: "TEXT", nullable: false),
                     IsSearchable = table.Column<bool>(type: "INTEGER", nullable: false),
+                    HotColumn = table.Column<string>(type: "TEXT", nullable: true),
                     ComponentTypeId = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
@@ -113,10 +116,52 @@ namespace KomponentSistemi.Data.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Components_CapacitanceF",
-                table: "Components",
-                column: "CapacitanceF");
+            migrationBuilder.InsertData(
+                table: "ComponentTypes",
+                columns: new[] { "Id", "Name" },
+                values: new object[,]
+                {
+                    { 1, "Kondansatör" },
+                    { 2, "Direnç" },
+                    { 3, "Diyot" },
+                    { 4, "Transistör" },
+                    { 5, "Osilatör" },
+                    { 6, "Regülatör" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "ParameterDefinitions",
+                columns: new[] { "Id", "ComponentTypeId", "DataType", "DisplayName", "HotColumn", "IsSearchable", "Key", "Unit" },
+                values: new object[,]
+                {
+                    { 101, 1, "numeric", "Kapasitans", "primary", true, "capacitance", "F" },
+                    { 102, 1, "numeric", "Anma Gerilimi", "secondary", true, "voltage", "V" },
+                    { 103, 1, "text", "Dielektrik", null, true, "dielectric", null },
+                    { 104, 1, "text", "Tolerans", null, false, "tolerance", null },
+                    { 105, 1, "text", "Paket", null, true, "package", null },
+                    { 201, 2, "numeric", "Direnç", "primary", true, "resistance", "Ω" },
+                    { 202, 2, "numeric", "Güç", "secondary", true, "power", "W" },
+                    { 203, 2, "text", "Tolerans", null, false, "tolerance", null },
+                    { 204, 2, "text", "Paket", null, true, "package", null },
+                    { 301, 3, "numeric", "Ters Gerilim (Vr)", "primary", true, "reverse_voltage", "V" },
+                    { 302, 3, "numeric", "İleri Akım (If)", "secondary", true, "forward_current", "A" },
+                    { 303, 3, "numeric", "İleri Gerilim (Vf)", null, false, "forward_voltage", "V" },
+                    { 304, 3, "text", "Alt Tür", null, true, "subtype", null },
+                    { 305, 3, "text", "Paket", null, true, "package", null },
+                    { 401, 4, "numeric", "Gerilim (Vds/Vce)", "primary", true, "voltage", "V" },
+                    { 402, 4, "numeric", "Akım", "secondary", true, "current", "A" },
+                    { 403, 4, "numeric", "Güç", null, false, "power", "W" },
+                    { 404, 4, "text", "Alt Tür", null, true, "subtype", null },
+                    { 405, 4, "text", "Paket", null, true, "package", null },
+                    { 501, 5, "numeric", "Frekans", "primary", true, "frequency", "Hz" },
+                    { 502, 5, "numeric", "Besleme Gerilimi", "secondary", true, "supply_voltage", "V" },
+                    { 503, 5, "numeric", "Frekans Toleransı", null, false, "frequency_tolerance", "ppm" },
+                    { 504, 5, "text", "Paket", null, true, "package", null },
+                    { 601, 6, "numeric", "Çıkış Gerilimi", "primary", true, "output_voltage", "V" },
+                    { 602, 6, "numeric", "Çıkış Akımı", "secondary", true, "output_current", "A" },
+                    { 603, 6, "text", "Alt Tür", null, true, "subtype", null },
+                    { 604, 6, "text", "Paket", null, true, "package", null }
+                });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Components_ComponentTypeId",
@@ -130,9 +175,14 @@ namespace KomponentSistemi.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_Components_VoltageV",
+                name: "IX_Components_PrimaryValueSi",
                 table: "Components",
-                column: "VoltageV");
+                column: "PrimaryValueSi");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Components_SecondaryValueSi",
+                table: "Components",
+                column: "SecondaryValueSi");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Offers_ComponentId",

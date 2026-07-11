@@ -13,9 +13,10 @@ public class Component
     public ComponentType ComponentType { get; set; } = null!;
 
     // Sıcak arama sütunları (indekslenecek, aralık sorgusu buradan)
-    public double? CapacitanceF { get; set; }
-    public double? VoltageV { get; set; }
-
+    // Anlamları tipe göre değişir; ParameterDefinitions söyler.
+    public double? PrimaryValueSi { get; set; }
+    public double? SecondaryValueSi { get; set; }
+    
     // Tipe özel parametreler 
     public string ParamsJson { get; set; } = "{}";
 
