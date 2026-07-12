@@ -62,13 +62,14 @@
                   AutoGenerateColumns="False"
                   GridLinesVisibility="All">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="#"          Binding="{Binding RowNo}"            Width="Auto"/>
-                <DataGridTextColumn Header="MPN"        Binding="{Binding Mpn}"              Width="2*"/>
-                <DataGridTextColumn Header="Üretici"    Binding="{Binding Manufacturer}"     Width="2*"/>
-                <DataGridTextColumn Header="Tip"        Binding="{Binding TypeName}"         Width="*"/>
-                <DataGridTextColumn Header="Değer (SI)" Binding="{Binding PrimaryValueSi}"   Width="*"/>
-                <DataGridTextColumn Header="Gerilim"    Binding="{Binding SecondaryValueSi}" Width="*"/>
-                <DataGridTextColumn Header="Teklif"     Binding="{Binding OfferCount}"       Width="*"/>
+                <DataGridTextColumn Header="#"        Binding="{Binding RowNo}"            Width="Auto"/>
+                <DataGridTextColumn Header="MPN"      Binding="{Binding Mpn}"              Width="2*"/>
+                <DataGridTextColumn Header="Üretici"  Binding="{Binding Manufacturer}"     Width="2*"/>
+                <DataGridTextColumn Header="Tip"      Binding="{Binding TypeName}"         Width="*"/>
+                <DataGridTextColumn Header="Değer"    Binding="{Binding PrimaryDisplay}"   Width="*"/>
+                <DataGridTextColumn Header="2. Değer" Binding="{Binding SecondaryDisplay}" Width="*"/>
+                <DataGridTextColumn Header="Paket"    Binding="{Binding Package}"          Width="*"/>
+                <DataGridTextColumn Header="Teklif"   Binding="{Binding OfferCount}"       Width="Auto"/>
             </DataGrid.Columns>
         </DataGrid>
 

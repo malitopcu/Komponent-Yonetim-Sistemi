@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 namespace KomponentSistemi.Services;
 
 // Okuma tarafının servisi: DB'den ekranlık DTO'lar üretir.
-// (ImportService yazar, bu okur — sorumluluklar ayrı.)
 public class ComponentQueryService
 {
     private readonly AppDbContext _db;
@@ -25,7 +24,14 @@ public class ComponentQueryService
                 TypeName = c.ComponentType!.Name,
                 PrimaryValueSi = c.PrimaryValueSi,
                 SecondaryValueSi = c.SecondaryValueSi,
-                OfferCount = c.Offers.Count
+                OfferCount = c.Offers.Count,
+                Package = SqlJson.Extract(c.ParamsJson, "$.package"),
+                PrimaryUnit = _db.ParameterDefinitions
+                    .Where(p => p.ComponentTypeId == c.ComponentTypeId && p.HotColumn == "primary")
+                    .Select(p => p.Unit).FirstOrDefault(),
+                SecondaryUnit = _db.ParameterDefinitions
+                    .Where(p => p.ComponentTypeId == c.ComponentTypeId && p.HotColumn == "secondary")
+                    .Select(p => p.Unit).FirstOrDefault()
             })
             .ToListAsync();
     }

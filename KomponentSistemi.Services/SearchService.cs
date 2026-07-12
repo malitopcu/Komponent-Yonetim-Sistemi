@@ -15,15 +15,11 @@ public class SearchService
 
     public async Task<List<ComponentSummaryDto>> SearchAsync(SearchCriteria criteria)
     {
-        // Tarif defterini aç: henüz DB'ye GİDİLMEDİ, sadece sorgu kuruluyor
         IQueryable<Component> query = _db.Components;
-
-        // Her filtre, kullanıcı doldurmuşsa tarife bir satır ekler:
 
         if (criteria.ComponentTypeId.HasValue)
             query = query.Where(c => c.ComponentTypeId == criteria.ComponentTypeId.Value);
 
-        // Metin arama: iki taraf da büyük harfe çevrilerek harf duyarlılığı kaldırılır
         var text = criteria.Text;
         if (!string.IsNullOrWhiteSpace(text))
         {
@@ -44,15 +40,13 @@ public class SearchService
         if (criteria.MaxSecondary.HasValue)
             query = query.Where(c => c.SecondaryValueSi <= criteria.MaxSecondary.Value);
 
-        // Kategorik filtreler: her biri JSON içinde json_extract ile aranır
         foreach (var (key, value) in criteria.CategoricalFilters)
         {
-            var path = $"$.{key}";   // "dielectric" → "$.dielectric"
+            var path = $"$.{key}";
             var wanted = value;
             query = query.Where(c => SqlJson.Extract(c.ParamsJson, path) == wanted);
         }
 
-        // Tarif tamam → ŞİMDİ tek SQL üretilir, DB'ye gidilir, DTO'lara dökülür
         return await query
             .Select(c => new ComponentSummaryDto
             {
@@ -62,7 +56,14 @@ public class SearchService
                 TypeName = c.ComponentType!.Name,
                 PrimaryValueSi = c.PrimaryValueSi,
                 SecondaryValueSi = c.SecondaryValueSi,
-                OfferCount = c.Offers.Count
+                OfferCount = c.Offers.Count,
+                Package = SqlJson.Extract(c.ParamsJson, "$.package"),
+                PrimaryUnit = _db.ParameterDefinitions
+                    .Where(p => p.ComponentTypeId == c.ComponentTypeId && p.HotColumn == "primary")
+                    .Select(p => p.Unit).FirstOrDefault(),
+                SecondaryUnit = _db.ParameterDefinitions
+                    .Where(p => p.ComponentTypeId == c.ComponentTypeId && p.HotColumn == "secondary")
+                    .Select(p => p.Unit).FirstOrDefault()
             })
             .ToListAsync();
     }

@@ -169,4 +169,34 @@ public class ValueNormalizer
         }
         return null;
     }
+    
+    // FormatSi: NormalizeNumeric'in ters yönü — SI değeri insanca metne çevirir.
+    // Örn: (2.7e-13, "F") → "0.27 pF",  (10000, "Ω") → "10 kΩ",  (16e6, "Hz") → "16 MHz"
+    private static readonly (double Multiplier, string Prefix)[] FormatPrefixes =
+    {
+        (1e9, "G"), (1e6, "M"), (1e3, "k"),
+        (1, ""),
+        (1e-3, "m"), (1e-6, "µ"), (1e-9, "n"), (1e-12, "p"),
+    };
+
+    public static string FormatSi(double? value, string? unit)
+    {
+        if (value is null) return "";
+        double v = value.Value;
+        string u = unit ?? "";
+
+        if (v == 0) return $"0 {u}".Trim();
+
+        double abs = Math.Abs(v);
+
+        // Büyükten küçüğe in: değerin sığdığı ilk ön eki kullan
+        foreach (var (multiplier, prefix) in FormatPrefixes)
+        {
+            if (abs >= multiplier)
+                return $"{(v / multiplier).ToString("0.###", CultureInfo.InvariantCulture)} {prefix}{u}".Trim();
+        }
+
+        // Piko'dan bile küçük: yine piko ile göster (0.27 pF durumu)
+        return $"{(v / 1e-12).ToString("0.###", CultureInfo.InvariantCulture)} p{u}".Trim();
+    }
 }
