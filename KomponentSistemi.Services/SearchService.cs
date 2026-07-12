@@ -58,6 +58,8 @@ public class SearchService
                 SecondaryValueSi = c.SecondaryValueSi,
                 OfferCount = c.Offers.Count,
                 Package = SqlJson.Extract(c.ParamsJson, "$.package"),
+                Subtype = SqlJson.Extract(c.ParamsJson, "$.subtype"),
+                Tolerance = SqlJson.Extract(c.ParamsJson, "$.tolerance"),
                 PrimaryUnit = _db.ParameterDefinitions
                     .Where(p => p.ComponentTypeId == c.ComponentTypeId && p.HotColumn == "primary")
                     .Select(p => p.Unit).FirstOrDefault(),

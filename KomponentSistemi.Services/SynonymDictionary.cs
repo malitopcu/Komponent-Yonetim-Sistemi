@@ -1,10 +1,8 @@
 namespace KomponentSistemi.Services;
 
 // Başlık → parametre anahtarı eşlemesi.
-// Hangi sütuna/JSON'a gideceği ImportService'te ParameterDefinition'dan belirlenir.
 public static class SynonymDictionary
 {
-    // Kimlik alanları (parametre değil, doğrudan Component sütunu)
     private static readonly Dictionary<string, string> IdentityMap = new()
     {
         ["mpn"]                       = "Mpn",
@@ -16,7 +14,6 @@ public static class SynonymDictionary
         ["ürt."]                      = "Manufacturer",
     };
 
-    // Offer alanları
     private static readonly Dictionary<string, string> OfferMap = new()
     {
         ["price"]                  = "Price",
@@ -25,7 +22,6 @@ public static class SynonymDictionary
         ["mouser parça numarası"]  = "SourcePartNo",
     };
 
-    // Parametre alanları: başlık → parametre "Key"i (ParameterDefinition.Key ile eşleşir)
     private static readonly Dictionary<string, string> ParameterMap = new()
     {
         // Kondansatör
@@ -48,13 +44,17 @@ public static class SynonymDictionary
         ["power"]                   = "power",
         ["power (watts)"]           = "power",
         ["güç"]                     = "power",
-        // Diyot
+        // Diyot (DigiKey EN)
         ["voltage - dc reverse (vr) (max)"]   = "reverse_voltage",
         ["voltage - zener (nom) (vz)"]        = "reverse_voltage",
-        ["vz - zener voltaj"]                 = "reverse_voltage",
         ["current - average rectified (io)"]  = "forward_current",
         ["voltage - forward (vf) (max) @ if"] = "forward_voltage",
         ["technology"]                        = "subtype",
+        // Diyot (Mouser TR)
+        ["vz - zener voltaj"]       = "reverse_voltage",
+        ["tepe ters voltaj"]        = "reverse_voltage",
+        ["if - ileri akım"]         = "forward_current",
+        ["vf - ileri voltaj"]       = "forward_voltage",
         // Osilatör
         ["frequency"]               = "frequency",
         ["frekans"]                 = "frequency",
@@ -68,7 +68,10 @@ public static class SynonymDictionary
 
     private static string? Lookup(Dictionary<string, string> map, string header)
     {
-        string key = header.Trim().ToLowerInvariant();
+        string key = header.Trim()
+            .Replace('İ', 'i')        // U+0130: macOS/ICU'da ToLowerInvariant bunu küçültmüyor!
+            .ToLowerInvariant()
+            .Replace("\u0307", "");   // olası birleşen-nokta artıkları (platform farkına karşı)
         return map.TryGetValue(key, out var value) ? value : null;
     }
 }
