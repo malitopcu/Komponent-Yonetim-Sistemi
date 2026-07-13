@@ -11,6 +11,10 @@ public class AppDbContext : DbContext
     public DbSet<Offer> Offers => Set<Offer>();
     public DbSet<ImportProfile> ImportProfiles => Set<ImportProfile>();
 
+    // BOM (proje / malzeme listesi) tabloları
+    public DbSet<BomList> BomLists => Set<BomList>();
+    public DbSet<BomItem> BomItems => Set<BomItem>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder options)
     {
         // Veritabanını kullanıcının ana klasöründe sabit bir yere koy
@@ -30,6 +34,12 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<Component>().HasIndex(c => c.PrimaryValueSi);
         modelBuilder.Entity<Component>().HasIndex(c => c.SecondaryValueSi);
+
+        // Bir komponent, bir projede en fazla bir satır olur.
+        // (İkinci kez "projeye ekle" → yeni satır değil, adet artışı.)
+        modelBuilder.Entity<BomItem>()
+            .HasIndex(i => new { i.BomListId, i.ComponentId })
+            .IsUnique();
         
         modelBuilder.HasDbFunction(typeof(SqlJson).GetMethod(nameof(SqlJson.Extract))!)
             .HasName("json_extract");

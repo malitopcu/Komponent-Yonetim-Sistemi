@@ -13,4 +13,7 @@ public static class ServiceFactory
 
     public static ImportService CreateImportService()
         => new ImportService(new AppDbContext());
+
+    public static BomService CreateBomService()
+        => new BomService(new AppDbContext());
 }

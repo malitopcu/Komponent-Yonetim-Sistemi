@@ -22,7 +22,8 @@ public partial class App : Application
             {
                 DataContext = new MainWindowViewModel(
                     ServiceFactory.CreateComponentQueryService(),
-                    ServiceFactory.CreateSearchService()),
+                    ServiceFactory.CreateSearchService(),
+                    ServiceFactory.CreateBomService()),
             };
         }
 

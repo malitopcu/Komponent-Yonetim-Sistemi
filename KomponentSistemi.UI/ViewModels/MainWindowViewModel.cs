@@ -13,7 +13,11 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly ComponentQueryService _query;
     private readonly SearchService _search;
+    private readonly BomService _bom;
     private readonly ValueNormalizer _normalizer = new();
+
+    // Aktif (varsayılan) projenin kimliği — LoadAsync'te çözülür.
+    private int _bomListId;
 
     public ObservableCollection<ComponentSummaryDto> Components { get; } = new();
     public ObservableCollection<ComponentTypeDto> Types { get; } = new();
@@ -47,10 +51,22 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool HasImportReport => !string.IsNullOrEmpty(ImportReport);
 
-    public MainWindowViewModel(ComponentQueryService query, SearchService search)
+    // --- BOM (proje) ---
+    public ObservableCollection<BomRowDto> BomRows { get; } = new();
+
+    [ObservableProperty] private string _bomName = "";
+    [ObservableProperty] private string _bomTotalsDisplay = "—";
+    [ObservableProperty] private string _bomPricelessNote = "";
+
+    // "Projeye ekle" için adet + referans girişleri
+    [ObservableProperty] private int _addQuantity = 1;
+    [ObservableProperty] private string? _addReferences;
+
+    public MainWindowViewModel(ComponentQueryService query, SearchService search, BomService bom)
     {
         _query = query;
         _search = search;
+        _bom = bom;
         _ = LoadAsync();
     }
 
@@ -71,6 +87,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
         FillComponents(await _query.GetAllAsync());
         Status = $"{Components.Count} komponent yüklendi.";
+
+        // Aktif projeyi hazırla ve BOM tablosunu doldur.
+        _bomListId = await _bom.GetOrCreateDefaultListAsync();
+        await RefreshBomAsync();
     }
 
     [RelayCommand]
@@ -152,6 +172,51 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Status = $"İçe aktarma hatası: {ex.Message}";
         }
+    }
+
+    // --- BOM komutları ---
+
+    // Seçili komponenti aktif projeye ekle (adet + referans ile).
+    [RelayCommand]
+    private async Task AddToBomAsync()
+    {
+        if (SelectedRow == null)
+        {
+            Status = "Önce listeden bir komponent seç.";
+            return;
+        }
+
+        await _bom.AddItemAsync(_bomListId, SelectedRow.Id, AddQuantity, AddReferences);
+        await RefreshBomAsync();
+
+        Status = $"Projeye eklendi: {SelectedRow.Mpn} ×{AddQuantity}";
+        AddReferences = null;
+        AddQuantity = 1;
+    }
+
+    // Bir satırı projeden çıkar (butondan CommandParameter ile gelir).
+    [RelayCommand]
+    private async Task RemoveFromBomAsync(BomRowDto? row)
+    {
+        if (row == null) return;
+
+        await _bom.RemoveItemAsync(row.BomItemId);
+        await RefreshBomAsync();
+        Status = $"Projeden çıkarıldı: {row.Mpn}";
+    }
+
+    // BOM tablosunu ve toplamları tazele.
+    private async Task RefreshBomAsync()
+    {
+        var detail = await _bom.GetDetailAsync(_bomListId);
+
+        BomRows.Clear();
+        foreach (var r in detail.Rows)
+            BomRows.Add(r);
+
+        BomName = detail.Name;
+        BomTotalsDisplay = detail.TotalsDisplay;
+        BomPricelessNote = detail.PricelessNote;
     }
 
     private void FillComponents(List<ComponentSummaryDto> list)
