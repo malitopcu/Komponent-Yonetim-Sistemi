@@ -40,6 +40,12 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<BomItem>()
             .HasIndex(i => new { i.BomListId, i.ComponentId })
             .IsUnique();
+
+        // Bir komponentin bir satıcıdan EN FAZLA bir teklifi olur.
+        // (Aynı dosyayı 2 kez yüklemek → yeni teklif değil, mevcut teklifin güncellenmesi.)
+        modelBuilder.Entity<Offer>()
+            .HasIndex(o => new { o.ComponentId, o.Source })
+            .IsUnique();
         
         modelBuilder.HasDbFunction(typeof(SqlJson).GetMethod(nameof(SqlJson.Extract))!)
             .HasName("json_extract");

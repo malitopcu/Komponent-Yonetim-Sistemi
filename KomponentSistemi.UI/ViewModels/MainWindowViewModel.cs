@@ -21,6 +21,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public ObservableCollection<ComponentSummaryDto> Components { get; } = new();
     public ObservableCollection<ComponentTypeDto> Types { get; } = new();
+    public ObservableCollection<ComponentTypeDto> FilterTypes { get; } = new();  // "Tümü" + tipler (arama filtresi)
+
+    // Tipe göre sıcak sütun başlıkları ("Direnç (Ω)", "Güç (W)")
+    private readonly Dictionary<int, (string primary, string secondary)> _typeHeaders = new();
+    [ObservableProperty] private string _primaryHeader = "Değer";
+    [ObservableProperty] private string _secondaryHeader = "2. Değer";
 
     [ObservableProperty] private ComponentTypeDto? _selectedType;
     [ObservableProperty] private string? _searchText;
@@ -51,12 +57,39 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool HasImportReport => !string.IsNullOrEmpty(ImportReport);
 
+    // Seçilen ama henüz içe aktarılmamış dosya (staged)
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStagedFile))]
+    [NotifyPropertyChangedFor(nameof(StagedFileName))]
+    private string? _stagedFilePath;
+
+    public bool HasStagedFile => !string.IsNullOrEmpty(StagedFilePath);
+    public string StagedFileName => string.IsNullOrEmpty(StagedFilePath) ? "" : System.IO.Path.GetFileName(StagedFilePath);
+
     // --- BOM (proje) ---
     public ObservableCollection<BomRowDto> BomRows { get; } = new();
+
+    // Projeler (çoklu BOM)
+    public ObservableCollection<BomListDto> BomLists { get; } = new();
+    [ObservableProperty] private BomListDto? _selectedBomList;
+    [ObservableProperty] private string? _bomNameInput;
 
     [ObservableProperty] private string _bomName = "";
     [ObservableProperty] private string _bomTotalsDisplay = "—";
     [ObservableProperty] private string _bomPricelessNote = "";
+
+    // BOM tablosunda seçili satır (çıkarma için)
+    [ObservableProperty] private BomRowDto? _selectedBomRow;
+
+    // "Otomatik": temel para birimini BOM'un kendi çoğunluğundan bul.
+    private const string AutoCurrency = "Otomatik (çoğunluk)";
+
+    // Fiyat para birimi tercihi (Otomatik + gerçek para birimleri)
+    public ObservableCollection<string> Currencies { get; } = new();
+    [ObservableProperty] private string? _preferredCurrency;
+
+    // İlk yükleme sırasında tercih atanınca gereksiz/çakışan yenileme olmasın diye.
+    private bool _bomReady;
 
     // "Projeye ekle" için adet + referans girişleri
     [ObservableProperty] private int _addQuantity = 1;
@@ -75,6 +108,21 @@ public partial class MainWindowViewModel : ViewModelBase
         _ = LoadDetailAsync(value);
     }
 
+    // Başlıkları verilen tipe göre güncelle — seçimde DEĞİL, arama/temizle sonrası çağrılır.
+    private void UpdateHeaders(int? typeId)
+    {
+        if (typeId is int id && _typeHeaders.TryGetValue(id, out var h))
+        {
+            PrimaryHeader = h.primary;
+            SecondaryHeader = h.secondary;
+        }
+        else
+        {
+            PrimaryHeader = "Değer";
+            SecondaryHeader = "2. Değer";
+        }
+    }
+
     private async Task LoadDetailAsync(ComponentSummaryDto? row)
     {
         Detail = row == null ? null : await _query.GetDetailAsync(row.Id);
@@ -82,23 +130,47 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task LoadAsync()
     {
-        foreach (var t in await _query.GetTypesAsync())
+        var types = await _query.GetTypesAsync();
+        foreach (var t in types)
             Types.Add(t);
+
+        // Arama filtresi: başa "Tümü" (Id=0), sonra tipler.
+        FilterTypes.Add(new ComponentTypeDto { Id = 0, Name = "Tümü" });
+        foreach (var t in types)
+            FilterTypes.Add(t);
+
+        // Tipe göre sıcak sütun başlıklarını hazırla.
+        foreach (var h in await _query.GetTypeHeadersAsync())
+            _typeHeaders[h.TypeId] = (h.PrimaryHeader, h.SecondaryHeader);
+
+        SelectedType = FilterTypes[0];   // varsayılan: Tümü
 
         FillComponents(await _query.GetAllAsync());
         Status = $"{Components.Count} komponent yüklendi.";
 
-        // Aktif projeyi hazırla ve BOM tablosunu doldur.
+        // Projeleri + para birimlerini yükle, aktif projeyi seç, BOM tablosunu doldur.
         _bomListId = await _bom.GetOrCreateDefaultListAsync();
+
+        Currencies.Add(AutoCurrency);
+        foreach (var c in await _bom.GetCurrenciesAsync())
+            Currencies.Add(c);
+        PreferredCurrency = AutoCurrency;   // henüz yenileme tetiklemez (_bomReady false)
+
+        await RefreshBomListsAsync();
+        SelectedBomList = BomLists.FirstOrDefault(b => b.Id == _bomListId) ?? BomLists.FirstOrDefault();
+
+        _bomReady = true;
         await RefreshBomAsync();
     }
 
     [RelayCommand]
     private async Task SearchAsync()
     {
+        int? typeId = (SelectedType == null || SelectedType.Id == 0) ? null : SelectedType.Id;
+
         var criteria = new SearchCriteria
         {
-            ComponentTypeId = SelectedType?.Id,
+            ComponentTypeId = typeId,
             Text = SearchText,
             MinPrimary = _normalizer.NormalizeNumeric(MinPrimaryText),
             MaxPrimary = _normalizer.NormalizeNumeric(MaxPrimaryText),
@@ -107,13 +179,14 @@ public partial class MainWindowViewModel : ViewModelBase
         };
 
         FillComponents(await _search.SearchAsync(criteria));
+        UpdateHeaders(typeId);   // başlıklar sonuçlarla birlikte (Ara'ya basınca) değişsin
         Status = $"{Components.Count} sonuç bulundu.";
     }
 
     [RelayCommand]
     private async Task ResetAsync()
     {
-        SelectedType = null;
+        SelectedType = FilterTypes.FirstOrDefault();
         SearchText = null;
         MinPrimaryText = null;
         MaxPrimaryText = null;
@@ -121,10 +194,24 @@ public partial class MainWindowViewModel : ViewModelBase
         MaxSecondaryText = null;
 
         FillComponents(await _query.GetAllAsync());
+        UpdateHeaders(null);
         Status = $"{Components.Count} komponent yüklendi.";
     }
 
-    // Dosya seçici VEYA sürükle-bırak buraya çıkar.
+    // "İçe Aktar" butonu: seçili (staged) dosyayı gerçekten içe aktar.
+    [RelayCommand]
+    private async Task ImportStagedAsync()
+    {
+        if (string.IsNullOrEmpty(StagedFilePath)) return;
+        await ImportFileAsync(StagedFilePath);
+        StagedFilePath = null;   // aktarıldı, seçimi temizle
+    }
+
+    // "Vazgeç": seçili dosyayı içe aktarmadan bırak.
+    [RelayCommand]
+    private void ClearStaged() => StagedFilePath = null;
+
+    // Asıl içe aktarma işi (ImportStagedAsync çağırır).
     public async Task ImportFileAsync(string path)
     {
         try
@@ -160,13 +247,17 @@ public partial class MainWindowViewModel : ViewModelBase
             FillComponents(await _query.GetAllAsync());
             Status = $"İçe aktarma bitti: {result.Added} eklendi, {result.Updated} güncellendi, {result.Errors.Count} hata.";
 
-            ImportReport =
-                $"Dosya: {System.IO.Path.GetFileName(path)}\n" +
-                $"Tip: {ImportType.Name}   Kaynak: {source}   Para birimi: {currency ?? "(hücreden)"}\n" +
-                $"Eklenen: {result.Added}   Güncellenen: {result.Updated}   Hata: {result.Errors.Count}\n" +
-                (result.UnmappedHeaders.Count > 0
-                    ? $"Tanınmayan başlıklar ({result.UnmappedHeaders.Count}): {string.Join(", ", result.UnmappedHeaders)}"
-                    : "Tüm başlıklar tanındı.");
+            var lines = new System.Text.StringBuilder();
+            lines.AppendLine($"Dosya: {System.IO.Path.GetFileName(path)}");
+            lines.AppendLine($"Tip: {ImportType.Name}   Kaynak: {source}   Para birimi: {currency ?? "(hücreden)"}");
+            lines.AppendLine($"Eklenen: {result.Added}   Güncellenen: {result.Updated}   Hata: {result.Errors.Count}");
+            if (result.MissingExpected.Count > 0)
+                lines.AppendLine($"⚠ Beklenen parametre(ler) bu dosyada YOK: {string.Join(", ", result.MissingExpected)}");
+            else
+                lines.AppendLine("Beklenen tüm parametreler bulundu.");
+            if (result.UnmappedHeaders.Count > 0)
+                lines.AppendLine($"Not: tanınmayan başlık(lar) (istersen parametre olarak eklenebilir): {string.Join(", ", result.UnmappedHeaders)}");
+            ImportReport = lines.ToString().TrimEnd();
         }
         catch (Exception ex)
         {
@@ -208,7 +299,7 @@ public partial class MainWindowViewModel : ViewModelBase
     // BOM tablosunu ve toplamları tazele.
     private async Task RefreshBomAsync()
     {
-        var detail = await _bom.GetDetailAsync(_bomListId);
+        var detail = await _bom.GetDetailAsync(_bomListId, EffectivePreferred());
 
         BomRows.Clear();
         foreach (var r in detail.Rows)
@@ -217,6 +308,97 @@ public partial class MainWindowViewModel : ViewModelBase
         BomName = detail.Name;
         BomTotalsDisplay = detail.TotalsDisplay;
         BomPricelessNote = detail.PricelessNote;
+    }
+
+    // Kullanıcı fiyat para birimini değiştirince toplamları yeniden hesapla.
+    partial void OnPreferredCurrencyChanged(string? value)
+    {
+        if (_bomReady) _ = RefreshBomAsync();
+    }
+
+    // "Otomatik (çoğunluk)" seçiliyse servise null geçeriz (servis çoğunluğu bulur).
+    private string? EffectivePreferred()
+        => PreferredCurrency == AutoCurrency ? null : PreferredCurrency;
+
+    // Kullanıcı bir satırda başka bir teklife (fiyata) tıklayınca onu aktif yap.
+    [RelayCommand]
+    private async Task SetRowOfferAsync(OfferOptionDto? opt)
+    {
+        if (opt == null) return;
+
+        await _bom.SetSelectedOfferAsync(opt.BomItemId, opt.OfferId);
+        await RefreshBomAsync();
+    }
+
+    // --- Çoklu proje ---
+
+    // Proje seçilince: aktif projeyi değiştir, adı kutuya yaz, tabloyu tazele.
+    partial void OnSelectedBomListChanged(BomListDto? value)
+    {
+        if (value == null) return;
+        _bomListId = value.Id;
+        BomNameInput = value.Name;
+        if (_bomReady) _ = RefreshBomAsync();
+    }
+
+    private async Task RefreshBomListsAsync()
+    {
+        var lists = await _bom.GetListsAsync();
+        BomLists.Clear();
+        foreach (var l in lists)
+            BomLists.Add(l);
+    }
+
+    private void SelectBomListById(int id)
+        => SelectedBomList = BomLists.FirstOrDefault(b => b.Id == id) ?? BomLists.FirstOrDefault();
+
+    [RelayCommand]
+    private async Task NewBomAsync()
+    {
+        var name = string.IsNullOrWhiteSpace(BomNameInput) ? $"Proje {BomLists.Count + 1}" : BomNameInput!.Trim();
+        int id = await _bom.CreateListAsync(name);
+        await RefreshBomListsAsync();
+        SelectBomListById(id);
+        Status = $"Proje oluşturuldu: {name}";
+    }
+
+    [RelayCommand]
+    private async Task RenameBomAsync()
+    {
+        if (SelectedBomList == null || string.IsNullOrWhiteSpace(BomNameInput)) return;
+        int id = SelectedBomList.Id;
+        await _bom.RenameListAsync(id, BomNameInput!.Trim());
+        await RefreshBomListsAsync();
+        SelectBomListById(id);
+        Status = "Proje adı güncellendi.";
+    }
+
+    [RelayCommand]
+    private async Task DeleteBomAsync()
+    {
+        if (SelectedBomList == null) return;
+        if (BomLists.Count <= 1) { Status = "Son proje silinemez."; return; }
+
+        await _bom.DeleteListAsync(SelectedBomList.Id);
+        await RefreshBomListsAsync();
+        SelectBomListById(BomLists.FirstOrDefault()?.Id ?? 0);
+        Status = "Proje silindi.";
+    }
+
+    // Kaydetme diyaloğundan gelen yola BOM'u CSV olarak yazar (code-behind çağırır).
+    public async Task ExportBomAsync(string path)
+    {
+        try
+        {
+            var csv = await _bom.ExportCsvAsync(_bomListId, EffectivePreferred());
+            // UTF-8 + BOM: Excel Türkçe karakterleri doğru okusun.
+            await System.IO.File.WriteAllTextAsync(path, csv, new System.Text.UTF8Encoding(true));
+            Status = $"CSV dışa aktarıldı: {System.IO.Path.GetFileName(path)}";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Dışa aktarma hatası: {ex.Message}";
+        }
     }
 
     private void FillComponents(List<ComponentSummaryDto> list)

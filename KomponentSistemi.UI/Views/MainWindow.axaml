@@ -14,157 +14,354 @@
 
     <DockPanel Margin="10">
 
-        <!-- ÜST: Filtre + içe aktarma paneli -->
-        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,10">
-
-            <!-- 1. sıra: tip + metin + butonlar -->
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <ComboBox ItemsSource="{Binding Types}"
-                          SelectedItem="{Binding SelectedType}"
-                          PlaceholderText="Tip (tümü)"
-                          MinWidth="170">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="svc:ComponentTypeDto">
-                            <TextBlock Text="{Binding Name}"/>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-
-                <TextBox Text="{Binding SearchText}"
-                         PlaceholderText="MPN / üretici ara"
-                         MinWidth="220"/>
-
-                <Button Content="Ara"     Command="{Binding SearchCommand}"/>
-                <Button Content="Temizle" Command="{Binding ResetCommand}"/>
-            </StackPanel>
-
-            <!-- 2. sıra: sayısal aralıklar -->
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="Değer:" VerticalAlignment="Center"/>
-                <TextBox Text="{Binding MinPrimaryText}" PlaceholderText="min (örn 1n)"   Width="120"/>
-                <TextBlock Text="–" VerticalAlignment="Center"/>
-                <TextBox Text="{Binding MaxPrimaryText}" PlaceholderText="max (örn 100n)" Width="120"/>
-
-                <TextBlock Text="Gerilim:" VerticalAlignment="Center" Margin="16,0,0,0"/>
-                <TextBox Text="{Binding MinSecondaryText}" PlaceholderText="min (V)" Width="100"/>
-                <TextBlock Text="–" VerticalAlignment="Center"/>
-                <TextBox Text="{Binding MaxSecondaryText}" PlaceholderText="max (V)" Width="100"/>
-            </StackPanel>
-
-            <!-- 3. sıra: CSV içe aktarma (dosya seç ya da pencereye sürükle-bırak) -->
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="İçe aktar:" VerticalAlignment="Center" FontWeight="Bold"/>
-                <ComboBox ItemsSource="{Binding Types}"
-                          SelectedItem="{Binding ImportType}"
-                          PlaceholderText="Tip (otomatik)"
-                          MinWidth="150">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="svc:ComponentTypeDto">
-                            <TextBlock Text="{Binding Name}"/>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                <TextBox Text="{Binding ImportSource}"   PlaceholderText="Kaynak (örn Mouser)"   Width="140"/>
-                <TextBox Text="{Binding ImportCurrency}" PlaceholderText="Para birimi (örn USD)" Width="140"/>
-                <TextBox Text="{Binding ImportSubtype}"  PlaceholderText="Alt tür (örn Zener)"   Width="130"/>
-                <Button Content="CSV Seç" Click="ImportButton_Click"/>
-            </StackPanel>
-
-        </StackPanel>
-
-        <!-- ALT: durum çubuğu (en altta) -->
+        <!-- ALT: durum çubuğu (her sekmede görünür) -->
         <TextBlock DockPanel.Dock="Bottom"
                    Text="{Binding Status}"
                    Margin="0,8,0,0"/>
 
-        <!-- ALT: son içe aktarma raporu (rapor varsa görünür, durum çubuğunun üstünde) -->
-        <Expander DockPanel.Dock="Bottom"
-                  Header="Son içe aktarma raporu"
-                  IsVisible="{Binding HasImportReport}"
-                  Margin="0,8,0,0">
-            <TextBlock Text="{Binding ImportReport}" TextWrapping="Wrap" FontSize="12"/>
-        </Expander>
+        <!-- ANA İÇERİK: sekmeler -->
+        <TabControl>
 
-        <!-- ORTA: solda tablo, sağda detay paneli -->
-        <Grid ColumnDefinitions="*,Auto">
+            <!-- ================= SEKME 1: ARAMA ================= -->
+            <TabItem Header="Arama">
+                <DockPanel Margin="0,8,0,0">
 
-            <DataGrid Grid.Column="0"
-                      ItemsSource="{Binding Components}"
-                      SelectedItem="{Binding SelectedRow}"
-                      IsReadOnly="True"
-                      AutoGenerateColumns="False"
-                      GridLinesVisibility="All">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="#"        Binding="{Binding RowNo}"            Width="Auto"/>
-                    <DataGridTextColumn Header="MPN"      Binding="{Binding Mpn}"              Width="2*"/>
-                    <DataGridTextColumn Header="Üretici"  Binding="{Binding Manufacturer}"     Width="1.5*"/>
-                    <DataGridTextColumn Header="Tip"      Binding="{Binding TypeDisplay}"      Width="1.2*"/>
-                    <DataGridTextColumn Header="Değer"    Binding="{Binding PrimaryDisplay}"   Width="*"/>
-                    <DataGridTextColumn Header="2. Değer" Binding="{Binding SecondaryDisplay}" Width="*"/>
-                    <DataGridTextColumn Header="Tolerans" Binding="{Binding Tolerance}"        Width="*"/>
-                    <DataGridTextColumn Header="Paket"    Binding="{Binding Package}"          Width="*"/>
-                    <DataGridTextColumn Header="Teklif"   Binding="{Binding OfferCount}"       Width="Auto"/>
-                </DataGrid.Columns>
-            </DataGrid>
+                    <!-- ÜST: Filtre + içe aktarma paneli -->
+                    <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,10">
 
-            <!-- DETAY PANELİ -->
-            <Border Grid.Column="1"
-                    Width="320"
-                    IsVisible="{Binding HasDetail}"
-                    Margin="10,0,0,0"
-                    Padding="12"
-                    BorderBrush="#44888888"
-                    BorderThickness="1"
-                    CornerRadius="6">
-                <ScrollViewer>
-                    <StackPanel Spacing="6">
+                        <!-- 1. sıra: tip + metin + butonlar -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ComboBox ItemsSource="{Binding FilterTypes}"
+                                      SelectedItem="{Binding SelectedType}"
+                                      PlaceholderText="Tip (tümü)"
+                                      MinWidth="170">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="svc:ComponentTypeDto">
+                                        <TextBlock Text="{Binding Name}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
 
-                        <TextBlock Text="{Binding Detail.Mpn}"
-                                   FontSize="17" FontWeight="Bold" TextWrapping="Wrap"/>
-                        <TextBlock Text="{Binding Detail.Manufacturer}" TextWrapping="Wrap"/>
-                        <TextBlock Text="{Binding Detail.TypeName}" Opacity="0.7"/>
+                            <TextBox Text="{Binding SearchText}"
+                                     PlaceholderText="MPN / üretici ara"
+                                     MinWidth="220"/>
 
-                        <TextBlock Text="Parametreler" FontWeight="Bold" Margin="0,10,0,2"/>
-                        <ItemsControl ItemsSource="{Binding Detail.Parameters}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="svc:ParameterRowDto">
-                                    <Grid ColumnDefinitions="*,*" Margin="0,2">
-                                        <TextBlock Grid.Column="0" Text="{Binding Name}"
-                                                   Opacity="0.7" TextWrapping="Wrap"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding Value}"
-                                                   TextWrapping="Wrap"/>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            <Button Content="Ara"     Command="{Binding SearchCommand}" Classes="accent"/>
+                            <Button Content="Temizle" Command="{Binding ResetCommand}"/>
+                        </StackPanel>
 
-                        <TextBlock Text="Teklifler" FontWeight="Bold" Margin="0,10,0,2"/>
-                        <ItemsControl ItemsSource="{Binding Detail.Offers}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="svc:OfferRowDto">
-                                    <Border BorderThickness="0,0,0,1" BorderBrush="#33888888" Padding="0,4">
-                                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
-                                            <TextBlock Grid.Row="0" Grid.Column="0"
-                                                       Text="{Binding Source}" FontWeight="Bold"/>
-                                            <TextBlock Grid.Row="0" Grid.Column="1"
-                                                       Text="{Binding Price}"/>
-                                            <TextBlock Grid.Row="1" Grid.Column="0"
-                                                       Text="{Binding SourcePartNo}"
-                                                       Opacity="0.6" FontSize="11" TextWrapping="Wrap"/>
-                                            <TextBlock Grid.Row="1" Grid.Column="1"
-                                                       Text="{Binding Updated}"
-                                                       Opacity="0.6" FontSize="11"/>
-                                        </Grid>
+                        <!-- 2. sıra: sayısal aralıklar -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Değer:" VerticalAlignment="Center"/>
+                            <TextBox Text="{Binding MinPrimaryText}" PlaceholderText="min (örn 1n)"   Width="120"/>
+                            <TextBlock Text="–" VerticalAlignment="Center"/>
+                            <TextBox Text="{Binding MaxPrimaryText}" PlaceholderText="max (örn 100n)" Width="120"/>
+
+                            <TextBlock Text="Gerilim:" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                            <TextBox Text="{Binding MinSecondaryText}" PlaceholderText="min (V)" Width="100"/>
+                            <TextBlock Text="–" VerticalAlignment="Center"/>
+                            <TextBox Text="{Binding MaxSecondaryText}" PlaceholderText="max (V)" Width="100"/>
+                        </StackPanel>
+
+                    </StackPanel>
+
+                    <!-- ORTA: solda tablo, sağda detay + projeye ekle -->
+                    <Grid ColumnDefinitions="*,Auto">
+
+                        <DataGrid Grid.Column="0"
+                                  x:Name="ResultsGrid"
+                                  ItemsSource="{Binding Components}"
+                                  SelectedItem="{Binding SelectedRow}"
+                                  IsReadOnly="True"
+                                  AutoGenerateColumns="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="#"        Binding="{Binding RowNo}"            Width="Auto"/>
+                                <DataGridTextColumn Header="MPN"      Binding="{Binding Mpn}"              Width="2*"/>
+                                <DataGridTextColumn Header="Üretici"  Binding="{Binding Manufacturer}"     Width="1.5*"/>
+                                <DataGridTextColumn Header="Tip"      Binding="{Binding TypeDisplay}"      Width="1.2*"/>
+                                <DataGridTextColumn Header="Değer"    Binding="{Binding PrimaryDisplay}"   Width="*"/>
+                                <DataGridTextColumn Header="2. Değer" Binding="{Binding SecondaryDisplay}" Width="*"/>
+                                <DataGridTextColumn Header="Tolerans" Binding="{Binding Tolerance}"        Width="*"/>
+                                <DataGridTextColumn Header="Paket"    Binding="{Binding Package}"          Width="*"/>
+                                <DataGridTextColumn Header="Teklif"   Binding="{Binding OfferCount}"       Width="Auto"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <!-- DETAY PANELİ + PROJEYE EKLE -->
+                        <Border Grid.Column="1"
+                                Width="320"
+                                IsVisible="{Binding HasDetail}"
+                                Margin="10,0,0,0"
+                                Padding="14"
+                                Background="{StaticResource AppSurfaceBrush}"
+                                BorderBrush="{StaticResource AppBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="12">
+                            <ScrollViewer>
+                                <StackPanel Spacing="6">
+
+                                    <TextBlock Text="{Binding Detail.Mpn}"
+                                               FontSize="17" FontWeight="Bold" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding Detail.Manufacturer}" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding Detail.TypeName}" Opacity="0.7"/>
+
+                                    <TextBlock Text="Parametreler" FontWeight="Bold" Margin="0,10,0,2"/>
+                                    <ItemsControl ItemsSource="{Binding Detail.Parameters}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="svc:ParameterRowDto">
+                                                <Grid ColumnDefinitions="*,*" Margin="0,2">
+                                                    <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                               Opacity="0.7" TextWrapping="Wrap"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Value}"
+                                                               TextWrapping="Wrap"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="Teklifler" FontWeight="Bold" Margin="0,10,0,2"/>
+                                    <ItemsControl ItemsSource="{Binding Detail.Offers}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="svc:OfferRowDto">
+                                                <Border BorderThickness="0,0,0,1" BorderBrush="#33888888" Padding="0,4">
+                                                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
+                                                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                                                   Text="{Binding Source}" FontWeight="Bold"/>
+                                                        <TextBlock Grid.Row="0" Grid.Column="1"
+                                                                   Text="{Binding Price}"/>
+                                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                                                   Text="{Binding SourcePartNo}"
+                                                                   Opacity="0.6" FontSize="11" TextWrapping="Wrap"/>
+                                                        <TextBlock Grid.Row="1" Grid.Column="1"
+                                                                   Text="{Binding Updated}"
+                                                                   Opacity="0.6" FontSize="11"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- PROJEYE EKLE -->
+                                    <Border BorderThickness="0,1,0,0" BorderBrush="#33888888"
+                                            Margin="0,10,0,0" Padding="0,10,0,0">
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Text="Projeye Ekle" FontWeight="Bold"/>
+                                            <TextBlock Text="Hedef proje" FontSize="12" Opacity="0.7"/>
+                                            <ComboBox ItemsSource="{Binding BomLists}"
+                                                      SelectedItem="{Binding SelectedBomList}"
+                                                      HorizontalAlignment="Stretch">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="svc:BomListDto">
+                                                        <TextBlock Text="{Binding Display}"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="Adet:" VerticalAlignment="Center"/>
+                                                <TextBox Text="{Binding AddQuantity}" Width="90"/>
+                                            </StackPanel>
+                                            <TextBox Text="{Binding AddReferences}"
+                                                     PlaceholderText="Referanslar (örn C1, C2)"/>
+                                            <Button Content="Ekle"
+                                                    Command="{Binding AddToBomCommand}"
+                                                    HorizontalAlignment="Stretch"
+                                                    Classes="accent"/>
+                                        </StackPanel>
                                     </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+
+                    </Grid>
+
+                </DockPanel>
+            </TabItem>
+
+            <!-- ================= SEKME 2: PROJE (BOM) ================= -->
+            <TabItem Header="Proje (BOM)">
+                <DockPanel Margin="0,8,0,0">
+
+                    <!-- ÜST: proje başlığı + toplam + araçlar -->
+                    <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,10">
+
+                        <!-- Proje yönetimi (çoklu BOM) -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Proje:" VerticalAlignment="Center" FontWeight="Bold"/>
+                            <ComboBox ItemsSource="{Binding BomLists}"
+                                      SelectedItem="{Binding SelectedBomList}"
+                                      MinWidth="190">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="svc:BomListDto">
+                                        <TextBlock Text="{Binding Display}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBox Text="{Binding BomNameInput}" PlaceholderText="Proje adı" Width="160"/>
+                            <Button Content="Yeni"     Command="{Binding NewBomCommand}" Classes="accent"/>
+                            <Button Content="Adlandır" Command="{Binding RenameBomCommand}"/>
+                            <Button Content="Sil"      Command="{Binding DeleteBomCommand}"/>
+                        </StackPanel>
+
+                        <!-- BOM araçları -->
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Content="Seçili satırı çıkar"
+                                    Command="{Binding RemoveFromBomCommand}"
+                                    CommandParameter="{Binding SelectedBomRow}"/>
+                            <Button Content="CSV Dışa Aktar"
+                                    Click="ExportBomButton_Click"/>
+                            <TextBlock Text="Para birimi:" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                            <ComboBox ItemsSource="{Binding Currencies}"
+                                      SelectedItem="{Binding PreferredCurrency}"
+                                      MinWidth="100"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Toplam:" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding BomTotalsDisplay}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding BomPricelessNote}" Opacity="0.7"
+                                       VerticalAlignment="Center" Margin="16,0,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- ORTA: BOM tablosu -->
+                    <DataGrid ItemsSource="{Binding BomRows}"
+                              SelectedItem="{Binding SelectedBomRow}"
+                              IsReadOnly="True"
+                              AutoGenerateColumns="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="MPN"         Binding="{Binding Mpn}"          Width="2*"/>
+                            <DataGridTextColumn Header="Üretici"     Binding="{Binding Manufacturer}" Width="1.5*"/>
+                            <DataGridTextColumn Header="Tip"         Binding="{Binding TypeName}"     Width="1.2*"/>
+                            <DataGridTextColumn Header="Adet"        Binding="{Binding Quantity}"     Width="Auto"/>
+                            <DataGridTextColumn Header="Referanslar" Binding="{Binding References}"   Width="1.5*"/>
+
+                            <!-- Birim Fiyat: tüm teklifler tıklanabilir çip; aktif olan ✓ işaretli -->
+                            <DataGridTemplateColumn Header="Birim Fiyat (tıkla-seç)" Width="2.4*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:CompileBindings="False">
+                                        <ItemsControl ItemsSource="{Binding Offers}" VerticalAlignment="Center">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:CompileBindings="False">
+                                                    <Button Content="{Binding Display}"
+                                                            Margin="2" Padding="6,2" FontSize="12"
+                                                            Command="{Binding DataContext.SetRowOfferCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                            CommandParameter="{Binding}"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Satır Fiyat" Binding="{Binding LinePriceDisplay}" Width="*"/>
+                            <DataGridTextColumn Header="Distribütör" Binding="{Binding DistributorName}"  Width="1.3*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                </DockPanel>
+            </TabItem>
+
+            <!-- ================= SEKME 3: İÇE AKTARMA ================= -->
+            <TabItem Header="İçe Aktarma">
+                <ScrollViewer>
+                    <StackPanel Spacing="16" Margin="4,12,4,4" MaxWidth="820" HorizontalAlignment="Stretch">
+
+                        <TextBlock Text="CSV İçe Aktarma" FontSize="18" FontWeight="Bold"/>
+
+                        <!-- Sürükle-bırak / seçim alanı (tıklanınca dosya seçici; henüz İÇE AKTARMAZ) -->
+                        <Grid Height="200" Cursor="Hand" PointerPressed="ImportZone_PointerPressed">
+                            <Rectangle Stroke="#9DB8E8" StrokeThickness="2" StrokeDashArray="6,4"
+                                       RadiusX="16" RadiusY="16" Fill="#F5F8FF"/>
+
+                            <!-- Henüz dosya seçilmedi -->
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10"
+                                        IsVisible="{Binding !HasStagedFile}">
+                                <Path Fill="{StaticResource AppAccentBrush}" Width="44" Height="44" Stretch="Uniform"
+                                      HorizontalAlignment="Center"
+                                      Data="M16,3 L27,15 L20,15 L20,26 L12,26 L12,15 L5,15 Z"/>
+                                <TextBlock Text="CSV dosyasını buraya sürükleyip bırak"
+                                           FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                <TextBlock Text="ya da seçmek için tıkla"
+                                           Opacity="0.6" HorizontalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- Dosya seçildi (henüz içe aktarılmadı) -->
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8"
+                                        IsVisible="{Binding HasStagedFile}">
+                                <Path Fill="{StaticResource AppAccentBrush}" Width="40" Height="40" Stretch="Uniform"
+                                      HorizontalAlignment="Center"
+                                      Data="M7,2 L19,2 L25,8 L25,30 L7,30 Z"/>
+                                <TextBlock Text="{Binding StagedFileName}"
+                                           FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                           TextWrapping="Wrap" MaxWidth="600"/>
+                                <TextBlock Text="Hazır — aşağıdan 'İçe Aktar'a bas. (Değiştirmek için tıkla.)"
+                                           Opacity="0.6" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Ayarlar kartı -->
+                        <Border Background="{StaticResource AppSurfaceBrush}"
+                                BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1"
+                                CornerRadius="12" Padding="16">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="İçe aktarma ayarları" FontWeight="Bold"/>
+                                <TextBlock Text="Tip boşsa başlıklardan otomatik önerilir. Kaynak boşsa 'Bilinmeyen' olur. Para birimi boşsa hücredeki işaretten (€/$) okunur."
+                                           Opacity="0.6" FontSize="12" TextWrapping="Wrap"/>
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Tip" FontSize="12" Opacity="0.7"/>
+                                        <ComboBox ItemsSource="{Binding Types}" SelectedItem="{Binding ImportType}"
+                                                  PlaceholderText="Otomatik" MinWidth="150">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="svc:ComponentTypeDto">
+                                                    <TextBlock Text="{Binding Name}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Kaynak" FontSize="12" Opacity="0.7"/>
+                                        <TextBox Text="{Binding ImportSource}" PlaceholderText="örn Mouser" Width="150"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Para birimi" FontSize="12" Opacity="0.7"/>
+                                        <TextBox Text="{Binding ImportCurrency}" PlaceholderText="örn USD" Width="130"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Alt tür" FontSize="12" Opacity="0.7"/>
+                                        <TextBox Text="{Binding ImportSubtype}" PlaceholderText="örn Zener" Width="130"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- İçe aktar / vazgeç -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="İçe Aktar"
+                                    Command="{Binding ImportStagedCommand}"
+                                    IsEnabled="{Binding HasStagedFile}"
+                                    Classes="accent"/>
+                            <Button Content="Vazgeç"
+                                    Command="{Binding ClearStagedCommand}"
+                                    IsVisible="{Binding HasStagedFile}"/>
+                        </StackPanel>
+
+                        <!-- Son içe aktarma raporu -->
+                        <Expander Header="Son içe aktarma raporu" IsVisible="{Binding HasImportReport}">
+                            <TextBlock Text="{Binding ImportReport}" TextWrapping="Wrap" FontSize="12"/>
+                        </Expander>
 
                     </StackPanel>
                 </ScrollViewer>
-            </Border>
+            </TabItem>
 
-        </Grid>
+        </TabControl>
 
     </DockPanel>
 

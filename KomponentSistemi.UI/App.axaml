@@ -2,15 +2,73 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="KomponentSistemi.UI.App"
              xmlns:local="using:KomponentSistemi.UI"
-             RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+             RequestedThemeVariant="Light">
 
     <Application.DataTemplates>
         <local:ViewLocator/>
     </Application.DataTemplates>
-  
+
+    <Application.Resources>
+        <!-- Mavi vurgu (Fluent bunları kullanır) -->
+        <Color x:Key="SystemAccentColor">#2F6FEB</Color>
+        <Color x:Key="SystemAccentColorLight1">#4B84EF</Color>
+        <Color x:Key="SystemAccentColorLight2">#6E9DF3</Color>
+        <Color x:Key="SystemAccentColorLight3">#92B6F7</Color>
+        <Color x:Key="SystemAccentColorDark1">#245BD0</Color>
+        <Color x:Key="SystemAccentColorDark2">#1C49A8</Color>
+        <Color x:Key="SystemAccentColorDark3">#143781</Color>
+
+        <!-- Uygulama renk paleti (açık profesyonel) -->
+        <SolidColorBrush x:Key="AppPageBrush"          Color="#F4F6F8"/>
+        <SolidColorBrush x:Key="AppSurfaceBrush"       Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="AppHeaderBrush"        Color="#F0F2F5"/>
+        <SolidColorBrush x:Key="AppBorderBrush"        Color="#E4E7EC"/>
+        <SolidColorBrush x:Key="AppBorderSoftBrush"    Color="#EEF0F3"/>
+        <SolidColorBrush x:Key="AppTextPrimaryBrush"   Color="#1A1D21"/>
+        <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#6B7280"/>
+        <SolidColorBrush x:Key="AppAccentBrush"        Color="#2F6FEB"/>
+    </Application.Resources>
+
     <Application.Styles>
         <FluentTheme />
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+
+        <!-- Pencere zemini: yumuşak gri; kartlar üstünde beyaz durur -->
+        <Style Selector="Window">
+            <Setter Property="Background" Value="{StaticResource AppPageBrush}"/>
+        </Style>
+
+        <!-- Kontrollerde yumuşak köşe -->
+        <Style Selector="Button">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="12,6"/>
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+
+        <!-- Tablo: beyaz kart görünümü, ince yatay çizgiler -->
+        <Style Selector="DataGrid">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="RowBackground" Value="{StaticResource AppSurfaceBrush}"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource AppBorderSoftBrush}"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+        </Style>
+        <Style Selector="DataGridColumnHeader">
+            <Setter Property="Background" Value="{StaticResource AppHeaderBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppTextSecondaryBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="MinHeight" Value="34"/>
+        </Style>
+        <Style Selector="DataGridCell">
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
     </Application.Styles>
 </Application>

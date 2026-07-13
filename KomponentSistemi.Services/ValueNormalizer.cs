@@ -108,21 +108,24 @@ public class ValueNormalizer
         }
         else if (hasComma)
         {
-            // Sadece virgül var: sonrasında tam 3 basamak varsa binlik, değilse ondalık
+            // Sadece virgül var. "sonrasında tam 3 basamak = binlik" kuralı;
+            // AMA "0,016" gibi SIFIRLA başlayan sayı her zaman ondalıktır (binlik olamaz).
             int idx = text.LastIndexOf(',');
             int digitsAfter = text.Length - idx - 1;
-            if (digitsAfter == 3)
-                text = text.Replace(",", "");        // binlik → sil
+            string before = text.Substring(0, idx);
+            if (digitsAfter == 3 && before.Length > 0 && before[0] != '0')
+                text = text.Replace(",", "");        // binlik → sil  (ör. "1,234" → 1234)
             else
-                text = text.Replace(",", ".");       // ondalık → noktaya çevir
+                text = text.Replace(",", ".");       // ondalık → noktaya çevir (ör. "0,016" → 0.016)
         }
         else if (hasDot)
         {
-            // Sadece nokta var: sonrasında tam 3 basamak varsa binlik, değilse ondalık
+            // Aynı kural nokta için: "10.000" binlik, ama "0.016" ondalık.
             int idx = text.LastIndexOf('.');
             int digitsAfter = text.Length - idx - 1;
-            if (digitsAfter == 3)
-                text = text.Replace(".", "");        // binlik → sil
+            string before = text.Substring(0, idx);
+            if (digitsAfter == 3 && before.Length > 0 && before[0] != '0')
+                text = text.Replace(".", "");        // binlik → sil  (ör. "10.000" → 10000)
             // değilse dokunma, zaten nokta ondalık
         }
 

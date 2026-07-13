@@ -62,9 +62,27 @@ public static class SynonymDictionary
         ["frequency stability"]     = "frequency_tolerance",
     };
 
+    // Bilinen meta/lojistik/medya başlıkları — komponent parametresi değil, sessizce atlanır.
+    private static readonly HashSet<string> IgnoreSet = new()
+    {
+        "datasheet", "veri sayfası", "image", "resim", "supplier", "description", "açıklama",
+        "stock", "stok", "stok durumu", "@ qty", "min qty", "package", "paketleme",
+        "series", "seri", "product status", "yaşam döngüsü", "ürün detayı", "product detail",
+        "operating temperature", "minimum çalışma sıcaklığı", "maksimum çalışma sıcaklığı",
+        "features", "ratings", "vasıf", "applications", "failure rate",
+        "mounting type", "sonlandırma stili", "sonlandırma",
+        "size / dimension", "height - seated (max)", "yükseklik", "thickness (max)",
+        "lead spacing", "lead style", "url", "rohs", "ürün",
+        "uzunluk", "genişlik", "kasa kodu - mm",
+    };
+
     public static string? ResolveIdentity(string header) => Lookup(IdentityMap, header);
     public static string? ResolveOffer(string header)    => Lookup(OfferMap, header);
     public static string? ResolveParameter(string header) => Lookup(ParameterMap, header);
+
+    // Başlık bilinen bir meta/atlanabilir sütun mu? (rapordaki gürültüyü keser)
+    public static bool IsIgnorable(string header)
+        => IgnoreSet.Contains(header.Trim().Replace('İ', 'i').ToLowerInvariant());
 
     private static string? Lookup(Dictionary<string, string> map, string header)
     {

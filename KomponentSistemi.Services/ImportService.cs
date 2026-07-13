@@ -59,6 +59,7 @@ public class ImportService
             }
 
             if (SynonymDictionary.ResolveOffer(header) != null) continue;
+            if (SynonymDictionary.IsIgnorable(header)) continue;   // bilinen meta sütun → sessizce atla
 
             unmapped.Add(header);
         }
@@ -89,6 +90,7 @@ public class ImportService
         public int Added { get; set; }
         public int Updated { get; set; }
         public List<string> UnmappedHeaders { get; set; } = new();
+        public List<string> MissingExpected { get; set; } = new();   // tipte olması beklenen ama dosyada olmayan parametreler
         public List<string> Errors { get; set; } = new();
     }
 
@@ -100,6 +102,16 @@ public class ImportService
         var reader = new CsvImportReader();
         var readResult = reader.Read(filePath);
         result.Errors.AddRange(readResult.Errors);
+
+        // Bu tipin beklenen çekirdek parametreleri (primary/secondary) dosyada var mı?
+        var headers = readResult.Rows.FirstOrDefault()?.Keys.ToList() ?? new List<string>();
+        var mappedKeys = headers
+            .Select(SynonymDictionary.ResolveParameter)
+            .Where(k => k != null).Select(k => k!)
+            .ToHashSet();
+        foreach (var def in paramDefs.Values.Where(d => d.HotColumn == "primary" || d.HotColumn == "secondary"))
+            if (!mappedKeys.Contains(def.Key))
+                result.MissingExpected.Add(def.DisplayName);
 
         var unmappedSet = new HashSet<string>();
 
@@ -163,7 +175,9 @@ public class ImportService
 
         currency ??= defaultCurrency;
 
-        var offer = comp.Offers.FirstOrDefault(o => o.Source == source);
+        // Aynı satıcı (boşluk/büyük-küçük harf farkını yok say) → yeni teklif açma, güncelle.
+        var offer = comp.Offers.FirstOrDefault(o =>
+            string.Equals(o.Source?.Trim(), source?.Trim(), StringComparison.OrdinalIgnoreCase));
         if (offer == null)
         {
             comp.Offers.Add(new Offer

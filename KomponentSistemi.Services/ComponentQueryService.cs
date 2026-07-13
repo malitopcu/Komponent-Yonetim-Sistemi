@@ -47,6 +47,29 @@ public class ComponentQueryService
             .ToListAsync();
     }
 
+    // Her tip için sıcak sütun etiketleri (primary/secondary tanım adı + birim).
+    public async Task<List<TypeHeaderDto>> GetTypeHeadersAsync()
+    {
+        var defs = await _db.ParameterDefinitions
+            .Where(p => p.HotColumn == "primary" || p.HotColumn == "secondary")
+            .ToListAsync();
+
+        return defs.GroupBy(p => p.ComponentTypeId)
+            .Select(g => new TypeHeaderDto
+            {
+                TypeId = g.Key,
+                PrimaryHeader = Label(g.FirstOrDefault(p => p.HotColumn == "primary"), "Değer"),
+                SecondaryHeader = Label(g.FirstOrDefault(p => p.HotColumn == "secondary"), "2. Değer")
+            })
+            .ToList();
+    }
+
+    // "Direnç" + "Ω" → "Direnç (Ω)"; birim yoksa sadece ad; tanım yoksa yedek metin.
+    private static string Label(ParameterDefinition? d, string fallback)
+        => d == null ? fallback
+         : string.IsNullOrEmpty(d.Unit) ? d.DisplayName
+         : $"{d.DisplayName} ({d.Unit})";
+
     // Tek bir komponentin tüm detayı: parametreler (sıcak sütunlar + JSON) ve teklifler.
     public async Task<ComponentDetailDto?> GetDetailAsync(int componentId)
     {

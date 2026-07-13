@@ -29,6 +29,44 @@ public class BomService
         return list.Id;
     }
 
+    // --- Projeler (çoklu BOM) ---
+    public async Task<List<BomListDto>> GetListsAsync()
+    {
+        return await _db.BomLists
+            .OrderBy(b => b.Id)
+            .Select(b => new BomListDto { Id = b.Id, Name = b.Name, ItemCount = b.Items.Count })
+            .ToListAsync();
+    }
+
+    public async Task<int> CreateListAsync(string name)
+    {
+        var list = new BomList
+        {
+            Name = string.IsNullOrWhiteSpace(name) ? "Yeni Proje" : name.Trim(),
+            CreatedAt = DateTime.Now
+        };
+        _db.BomLists.Add(list);
+        await _db.SaveChangesAsync();
+        return list.Id;
+    }
+
+    public async Task RenameListAsync(int bomListId, string name)
+    {
+        var list = await _db.BomLists.FindAsync(bomListId);
+        if (list == null || string.IsNullOrWhiteSpace(name)) return;
+        list.Name = name.Trim();
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task DeleteListAsync(int bomListId)
+    {
+        // Satırları da yükle → liste silinince onlar da gider.
+        var list = await _db.BomLists.Include(b => b.Items).FirstOrDefaultAsync(b => b.Id == bomListId);
+        if (list == null) return;
+        _db.BomLists.Remove(list);
+        await _db.SaveChangesAsync();
+    }
+
     // --- Satır ekleme (upsert) ---
     // Aynı komponent listede varsa: adet artar, referanslar birleşir. Yoksa yeni satır.
     // (Bu davranış (BomListId, ComponentId) benzersiz indeksiyle DB güvencesine de bağlı.)
@@ -96,7 +134,18 @@ public class BomService
     }
 
     // --- Ekran verisi: satırlar + para birimi başına toplam ---
-    public async Task<BomDetailDto> GetDetailAsync(int bomListId)
+    // Sepetteki para birimleri, EN YAYGIN olan başta (varsayılan tercih en çok teklifi olan birim olsun).
+    public async Task<List<string>> GetCurrenciesAsync()
+    {
+        return await _db.Offers
+            .Where(o => o.Currency != null && o.Currency != "")
+            .GroupBy(o => o.Currency!)
+            .OrderByDescending(g => g.Count())
+            .Select(g => g.Key)
+            .ToListAsync();
+    }
+
+    public async Task<BomDetailDto> GetDetailAsync(int bomListId, string? preferredCurrency)
     {
         var list = await _db.BomLists
             .Include(b => b.Items).ThenInclude(i => i.Component).ThenInclude(c => c.ComponentType)
@@ -111,30 +160,27 @@ public class BomService
 
         if (list == null) return detail;
 
-        // Para birimi başına koşan toplam. EUR kendi sepetinde, USD kendi sepetinde.
+        // Temel para birimi: kullanıcı elle seçtiyse o; yoksa BOM'un kendi çoğunluğu.
+        string? baseCurrency = string.IsNullOrWhiteSpace(preferredCurrency)
+            ? MajorityCurrency(list)
+            : preferredCurrency;
+
         var totals = new Dictionary<string, double>();
 
         foreach (var item in list.Items.OrderBy(i => i.Id))
         {
-            // Komponentin tekliflerini para birimine göre grupla; her para biriminde EN UCUZ.
-            // Yalnızca hem fiyatı hem para birimi olan teklifler sayılır (dürüstlük: birimsiz fiyat karışmaz).
-            var perCurrency = item.Component.Offers
+            // Fiyatı + para birimi olan teklifler (dürüstlük: birimsiz fiyat sayılmaz).
+            var priced = item.Component.Offers
                 .Where(o => o.Price.HasValue && !string.IsNullOrWhiteSpace(o.Currency))
-                .GroupBy(o => o.Currency!)
-                .ToDictionary(g => g.Key, g => g.Min(o => o.Price!.Value));
+                .ToList();
 
-            bool hasPrice = perCurrency.Count > 0;
-            if (!hasPrice) detail.PricelessCount++;
+            // Aktif teklif: kullanıcı elle seçtiyse o; yoksa temel para birimi kuralı.
+            Offer? active = null;
+            if (item.SelectedOfferId is int selId)
+                active = priced.FirstOrDefault(o => o.Id == selId);
+            active ??= PickOffer(priced, baseCurrency);
 
-            // Bu satırın her para birimindeki katkısını genel toplama ekle.
-            foreach (var kv in perCurrency)
-            {
-                double line = kv.Value * item.Quantity;
-                totals.TryGetValue(kv.Key, out var acc);
-                totals[kv.Key] = acc + line;
-            }
-
-            detail.Rows.Add(new BomRowDto
+            var row = new BomRowDto
             {
                 BomItemId = item.Id,
                 ComponentId = item.ComponentId,
@@ -143,10 +189,37 @@ public class BomService
                 TypeName = item.Component.ComponentType?.Name ?? "",
                 Quantity = item.Quantity,
                 References = item.References,
-                UnitPriceDisplay = FormatPerCurrency(perCurrency, 1),
-                LinePriceDisplay = FormatPerCurrency(perCurrency, item.Quantity),
-                HasPrice = hasPrice
-            });
+                HasPrice = active != null,
+                UnitPriceDisplay = active == null ? "—" : Money(active.Price!.Value, active.Currency!),
+                LinePriceDisplay = active == null ? "—" : Money(active.Price!.Value * item.Quantity, active.Currency!),
+                DistributorName = active?.Source ?? ""
+            };
+
+            // Satırın tüm tekliflerini çip listesi olarak doldur (aktif olanı işaretle).
+            foreach (var o in priced.OrderBy(o => o.Currency).ThenBy(o => o.Price))
+                row.Offers.Add(new OfferOptionDto
+                {
+                    BomItemId = item.Id,
+                    OfferId = o.Id,
+                    Source = o.Source,
+                    SourcePartNo = o.SourcePartNo,
+                    Price = o.Price!.Value,
+                    Currency = o.Currency!,
+                    IsActive = active != null && o.Id == active.Id
+                });
+
+            if (active == null)
+            {
+                detail.PricelessCount++;
+            }
+            else
+            {
+                double line = active.Price!.Value * item.Quantity;
+                totals.TryGetValue(active.Currency!, out var acc);
+                totals[active.Currency!] = acc + line;
+            }
+
+            detail.Rows.Add(row);
         }
 
         foreach (var kv in totals.OrderBy(k => k.Key))
@@ -155,36 +228,76 @@ public class BomService
         return detail;
     }
 
-    // {EUR:0.10, USD:0.11} + çarpan → "0.1 EUR  ·  0.11 USD"
-    private static string FormatPerCurrency(Dictionary<string, double> perCurrency, int multiplier)
+    // BOM'da en çok komponentin teklif verdiği para birimi (her komponent bir birimi bir kez sayar).
+    private static string? MajorityCurrency(BomList list)
     {
-        if (perCurrency.Count == 0) return "—";
-        return string.Join("  ·  ", perCurrency
-            .OrderBy(kv => kv.Key)
-            .Select(kv => (kv.Value * multiplier).ToString("0.####", CultureInfo.InvariantCulture) + " " + kv.Key));
+        return list.Items
+            .Select(i => i.Component)
+            .SelectMany(c => c.Offers
+                .Where(o => o.Price.HasValue && !string.IsNullOrWhiteSpace(o.Currency))
+                .Select(o => o.Currency!)
+                .Distinct())
+            .GroupBy(cur => cur)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key)
+            .Select(g => g.Key)
+            .FirstOrDefault();
     }
 
-    // --- CSV dışa aktarma (Adım 5'te butonla bağlanacak) ---
-    public async Task<string> ExportCsvAsync(int bomListId)
+    // Kullanıcının bir satırda tıkladığı teklifi aktif olarak kaydet (kalıcı).
+    public async Task SetSelectedOfferAsync(int bomItemId, int offerId)
     {
-        var detail = await GetDetailAsync(bomListId);
+        var item = await _db.BomItems.FindAsync(bomItemId);
+        if (item == null) return;
+
+        item.SelectedOfferId = offerId;
+        await _db.SaveChangesAsync();
+    }
+
+    // Bir parçanın teklifleri arasından TEK teklif seç:
+    // 1) Tercih edilen para biriminde teklif varsa → o birimde en ucuz.
+    // 2) Yoksa → parçanın mevcut en ucuz teklifi (kendi para biriminde).
+    private static Offer? PickOffer(List<Offer> priced, string? preferredCurrency)
+    {
+        if (priced.Count == 0) return null;
+
+        if (!string.IsNullOrWhiteSpace(preferredCurrency))
+        {
+            var inPref = priced
+                .Where(o => string.Equals(o.Currency, preferredCurrency, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(o => o.Price!.Value)
+                .ToList();
+            if (inPref.Count > 0) return inPref[0];
+        }
+
+        return priced.OrderBy(o => o.Price!.Value).First();
+    }
+
+    private static string Money(double amount, string currency)
+        => amount.ToString("0.####", CultureInfo.InvariantCulture) + " " + currency;
+
+    // --- CSV dışa aktarma (Adım 5'te butonla bağlanacak) ---
+    public async Task<string> ExportCsvAsync(int bomListId, string? preferredCurrency)
+    {
+        var detail = await GetDetailAsync(bomListId, preferredCurrency);
 
         var sb = new StringBuilder();
-        sb.AppendLine("MPN,Üretici,Tip,Adet,Referanslar,Birim Fiyat,Satır Fiyat");
+        sb.AppendLine("MPN,Üretici,Tip,Adet,Referanslar,Birim Fiyat,Satır Fiyat,Distribütör");
 
         foreach (var r in detail.Rows)
             sb.AppendLine(string.Join(",",
                 Csv(r.Mpn), Csv(r.Manufacturer), Csv(r.TypeName),
                 r.Quantity.ToString(CultureInfo.InvariantCulture),
-                Csv(r.References), Csv(r.UnitPriceDisplay), Csv(r.LinePriceDisplay)));
+                Csv(r.References), Csv(r.UnitPriceDisplay), Csv(r.LinePriceDisplay),
+                Csv(r.DistributorName)));
 
         // Toplam bölümü — para birimi başına ayrı satır (kör toplama yok).
         sb.AppendLine();
         foreach (var t in detail.Totals)
-            sb.AppendLine(string.Join(",", "TOPLAM", "", "", "", "", "", Csv(t.Display)));
+            sb.AppendLine(string.Join(",", "TOPLAM", "", "", "", "", "", Csv(t.Display), ""));
         if (detail.PricelessCount > 0)
             sb.AppendLine(string.Join(",", "Fiyatsız parça", "", "", "", "", "",
-                detail.PricelessCount.ToString(CultureInfo.InvariantCulture)));
+                detail.PricelessCount.ToString(CultureInfo.InvariantCulture), ""));
 
         return sb.ToString();
     }

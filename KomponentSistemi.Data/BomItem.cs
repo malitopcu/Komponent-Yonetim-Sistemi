@@ -20,4 +20,7 @@ public class BomItem
 
     // Şemadaki referans etiketleri: "C1, C2, C5" (serbest metin; yoksa boş).
     public string References { get; set; } = "";
+
+    // Kullanıcı bu satırda elle bir teklif seçtiyse onun Id'si; null → varsayılan (para birimi kuralı).
+    public int? SelectedOfferId { get; set; }
 }
