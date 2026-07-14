@@ -3,6 +3,7 @@ using System;
 using KomponentSistemi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KomponentSistemi.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714063422_AddImportHistory")]
+    partial class AddImportHistory
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
@@ -90,10 +93,6 @@ namespace KomponentSistemi.Data.Migrations
 
                     b.Property<double?>("PrimaryValueSi")
                         .HasColumnType("REAL");
-
-                    b.Property<string>("Rohs")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
 
                     b.Property<double?>("SecondaryValueSi")
                         .HasColumnType("REAL");
@@ -173,10 +172,6 @@ namespace KomponentSistemi.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("ImportedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Note")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Source")

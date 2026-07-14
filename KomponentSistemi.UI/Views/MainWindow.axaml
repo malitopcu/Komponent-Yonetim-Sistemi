@@ -65,6 +65,18 @@
 
                     </StackPanel>
 
+                    <!-- ALT: seçili tip hakkında kısa bilgi (açılır panel) -->
+                    <Expander DockPanel.Dock="Bottom"
+                              IsVisible="{Binding HasTypeInfo}"
+                              Header="{Binding TypeInfoTitle}"
+                              Margin="0,8,0,0" MaxHeight="240">
+                        <ScrollViewer>
+                            <TextBlock Text="{Binding TypeInfoBody}" TextWrapping="Wrap"
+                                       FontSize="13" LineHeight="20"
+                                       MaxWidth="920" HorizontalAlignment="Left"/>
+                        </ScrollViewer>
+                    </Expander>
+
                     <!-- ORTA: solda tablo, sağda detay + projeye ekle -->
                     <Grid ColumnDefinitions="*,Auto">
 
@@ -83,6 +95,7 @@
                                 <DataGridTextColumn Header="2. Değer" Binding="{Binding SecondaryDisplay}" Width="*"/>
                                 <DataGridTextColumn Header="Tolerans" Binding="{Binding Tolerance}"        Width="*"/>
                                 <DataGridTextColumn Header="Paket"    Binding="{Binding Package}"          Width="*"/>
+                                <DataGridTextColumn Header="RoHS"     Binding="{Binding Rohs}"             Width="Auto"/>
                                 <DataGridTextColumn Header="Teklif"   Binding="{Binding OfferCount}"       Width="Auto"/>
                             </DataGrid.Columns>
                         </DataGrid>
@@ -183,22 +196,32 @@
                 <DockPanel Margin="0,8,0,0">
 
                     <!-- ÜST: proje başlığı + toplam + araçlar -->
-                    <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,10">
+                    <StackPanel DockPanel.Dock="Top" Spacing="12" Margin="0,0,0,10">
 
-                        <!-- Proje yönetimi (çoklu BOM) -->
+                        <!-- ÜSTTE: yeni proje oluştur (ayrı kart) -->
+                        <Border Background="{StaticResource AppSurfaceBrush}"
+                                BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1"
+                                CornerRadius="12" Padding="12" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Yeni proje" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <TextBox Text="{Binding NewProjectName}" PlaceholderText="Proje adı" Width="220"/>
+                                <Button Content="Oluştur" Command="{Binding NewBomCommand}" Classes="accent"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ALTTA: aktif proje seç + adlandır/sil -->
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="Proje:" VerticalAlignment="Center" FontWeight="Bold"/>
+                            <TextBlock Text="Aktif proje:" VerticalAlignment="Center" FontWeight="Bold"/>
                             <ComboBox ItemsSource="{Binding BomLists}"
                                       SelectedItem="{Binding SelectedBomList}"
-                                      MinWidth="190">
+                                      MinWidth="200">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate x:DataType="svc:BomListDto">
                                         <TextBlock Text="{Binding Display}"/>
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
-                            <TextBox Text="{Binding BomNameInput}" PlaceholderText="Proje adı" Width="160"/>
-                            <Button Content="Yeni"     Command="{Binding NewBomCommand}" Classes="accent"/>
+                            <TextBox Text="{Binding BomNameInput}" Width="180"/>
                             <Button Content="Adlandır" Command="{Binding RenameBomCommand}"/>
                             <Button Content="Sil"      Command="{Binding DeleteBomCommand}"/>
                         </StackPanel>
@@ -338,6 +361,12 @@
                                         <TextBox Text="{Binding ImportSubtype}" PlaceholderText="örn Zener" Width="130"/>
                                     </StackPanel>
                                 </StackPanel>
+
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Not (isteğe bağlı)" FontSize="12" Opacity="0.7"/>
+                                    <TextBox Text="{Binding ImportNote}"
+                                             PlaceholderText="örn: Mouser Temmuz fiyat güncellemesi"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
@@ -359,6 +388,100 @@
 
                     </StackPanel>
                 </ScrollViewer>
+            </TabItem>
+
+            <!-- ================= SEKME 4: YÖNETİM ================= -->
+            <TabItem Header="Yönetim">
+                <Grid Margin="0,8,0,0" RowDefinitions="Auto,190,Auto,*">
+
+                    <!-- İçe aktarmalar: başlık + geri al -->
+                    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,6">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="İçe aktarmalar" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <Button Content="Seçili içe aktarmayı geri al"
+                                    Command="{Binding UndoBatchCommand}" Classes="accent"/>
+                        </StackPanel>
+                        <TextBlock Text="Geri al: o içe aktarmada eklenenler silinir, güncellenenler eski haline döner; öncekilere dokunulmaz."
+                                   Opacity="0.6" FontSize="12" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <!-- İçe aktarma tablosu -->
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding Batches}" SelectedItem="{Binding SelectedBatch}"
+                              IsReadOnly="True" AutoGenerateColumns="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Dosya"  Binding="{Binding FileName}"    Width="2*"/>
+                            <DataGridTextColumn Header="Kaynak" Binding="{Binding Source}"      Width="*"/>
+                            <DataGridTextColumn Header="Tip"    Binding="{Binding TypeName}"    Width="*"/>
+                            <DataGridTextColumn Header="Tarih"  Binding="{Binding DateDisplay}" Width="1.2*"/>
+                            <DataGridTextColumn Header="Özet"   Binding="{Binding Summary}"     Width="1.2*"/>
+                            <DataGridTextColumn Header="Not"    Binding="{Binding Note}"        Width="1.5*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Komponentler: başlık + ara + sil -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,14,0,6">
+                        <TextBlock Text="Komponentler" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding ManageSearchText}" PlaceholderText="MPN / üretici ara" Width="220"/>
+                        <Button Content="Ara" Command="{Binding ManageSearchCommand}"/>
+                        <Button Content="Seçili komponentleri sil" Command="{Binding RequestDeleteComponentsCommand}"/>
+                        <TextBlock Text="{Binding SelectedManageCountText}" VerticalAlignment="Center" Opacity="0.7"/>
+                    </StackPanel>
+
+                    <!-- Komponent tablosu + seçili komponentin teklifleri -->
+                    <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
+                        <DataGrid Grid.Column="0" ItemsSource="{Binding ManagedComponents}"
+                                  SelectedItem="{Binding SelectedManagedComponent}"
+                                  IsReadOnly="True" AutoGenerateColumns="False">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Width="Auto">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="vm:ManagedComponentRow">
+                                            <CheckBox IsChecked="{Binding IsSelected}" Margin="8,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="MPN"     Binding="{Binding Mpn}"          Width="2*"/>
+                                <DataGridTextColumn Header="Üretici" Binding="{Binding Manufacturer}" Width="1.5*"/>
+                                <DataGridTextColumn Header="Tip"     Binding="{Binding TypeDisplay}"  Width="1.2*"/>
+                                <DataGridTextColumn Header="Teklif"  Binding="{Binding OfferCount}"   Width="Auto"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <Border Grid.Column="1" Width="300" IsVisible="{Binding HasManagedComponent}"
+                                Margin="10,0,0,0" Padding="12"
+                                Background="{StaticResource AppSurfaceBrush}"
+                                BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1" CornerRadius="12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Seçili komponentin teklifleri" FontWeight="Bold" TextWrapping="Wrap"/>
+                                <DataGrid ItemsSource="{Binding ManagedOffers}" SelectedItem="{Binding SelectedManagedOffer}"
+                                          IsReadOnly="True" AutoGenerateColumns="False" Height="240">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Kaynak" Binding="{Binding Source}"       Width="*"/>
+                                        <DataGridTextColumn Header="Fiyat"  Binding="{Binding PriceDisplay}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <Button Content="Seçili teklifi sil" Command="{Binding DeleteManagedOfferCommand}"
+                                        HorizontalAlignment="Stretch"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Silme onay penceresi (tüm sekmenin üstünde belirir) -->
+                    <Border Grid.RowSpan="4" IsVisible="{Binding IsConfirmingDelete}" Background="#55000000">
+                        <Border Width="380" Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Background="{StaticResource AppSurfaceBrush}" CornerRadius="12"
+                                BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1">
+                            <StackPanel Spacing="16">
+                                <TextBlock Text="{Binding DeleteConfirmMessage}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                    <Button Content="Vazgeç" Command="{Binding CancelDeleteCommand}"/>
+                                    <Button Content="Sil" Command="{Binding ConfirmDeleteCommand}" Classes="accent"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Border>
+
+                </Grid>
             </TabItem>
 
         </TabControl>

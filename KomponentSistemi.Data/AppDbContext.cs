@@ -15,6 +15,10 @@ public class AppDbContext : DbContext
     public DbSet<BomList> BomLists => Set<BomList>();
     public DbSet<BomItem> BomItems => Set<BomItem>();
 
+    // İçe aktarma geçmişi (geri alma için)
+    public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+    public DbSet<ImportChange> ImportChanges => Set<ImportChange>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder options)
     {
         // Veritabanını kullanıcının ana klasöründe sabit bir yere koy

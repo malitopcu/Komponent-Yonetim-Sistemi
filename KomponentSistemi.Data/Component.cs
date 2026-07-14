@@ -17,8 +17,11 @@ public class Component
     public double? PrimaryValueSi { get; set; }
     public double? SecondaryValueSi { get; set; }
     
-    // Tipe özel parametreler 
+    // Tipe özel parametreler
     public string ParamsJson { get; set; } = "{}";
+
+    // RoHS uyumluluğu ("Uyumlu" / "Uyumsuz" / "" = bilinmiyor). Evrensel özellik → ayrı sütun.
+    public string Rohs { get; set; } = "";
 
     // İlişki: bu parçayı satan kaynaklar
     public List<Offer> Offers { get; set; } = new();

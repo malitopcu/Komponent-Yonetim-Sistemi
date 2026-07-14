@@ -29,6 +29,7 @@ public class ComponentQueryService
                 Package = SqlJson.Extract(c.ParamsJson, "$.package"),
                 Subtype = SqlJson.Extract(c.ParamsJson, "$.subtype"),
                 Tolerance = SqlJson.Extract(c.ParamsJson, "$.tolerance"),
+                Rohs = c.Rohs,
                 PrimaryUnit = _db.ParameterDefinitions
                     .Where(p => p.ComponentTypeId == c.ComponentTypeId && p.HotColumn == "primary")
                     .Select(p => p.Unit).FirstOrDefault(),

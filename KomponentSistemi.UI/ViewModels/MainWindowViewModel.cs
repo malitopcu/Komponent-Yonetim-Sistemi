@@ -14,6 +14,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ComponentQueryService _query;
     private readonly SearchService _search;
     private readonly BomService _bom;
+    private readonly DataManagementService _mgmt;
     private readonly ValueNormalizer _normalizer = new();
 
     // Aktif (varsayılan) projenin kimliği — LoadAsync'te çözülür.
@@ -27,6 +28,11 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly Dictionary<int, (string primary, string secondary)> _typeHeaders = new();
     [ObservableProperty] private string _primaryHeader = "Değer";
     [ObservableProperty] private string _secondaryHeader = "2. Değer";
+
+    // Seçili tip hakkında kısa bilgi (arama ekranı alt paneli)
+    [ObservableProperty] private bool _hasTypeInfo;
+    [ObservableProperty] private string _typeInfoTitle = "";
+    [ObservableProperty] private string _typeInfoBody = "";
 
     [ObservableProperty] private ComponentTypeDto? _selectedType;
     [ObservableProperty] private string? _searchText;
@@ -50,6 +56,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string? _importSource;
     [ObservableProperty] private string? _importCurrency;
     [ObservableProperty] private string? _importSubtype;
+    [ObservableProperty] private string? _importNote;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasImportReport))]
@@ -72,7 +79,32 @@ public partial class MainWindowViewModel : ViewModelBase
     // Projeler (çoklu BOM)
     public ObservableCollection<BomListDto> BomLists { get; } = new();
     [ObservableProperty] private BomListDto? _selectedBomList;
-    [ObservableProperty] private string? _bomNameInput;
+    [ObservableProperty] private string? _bomNameInput;      // seçili projenin adı (yeniden adlandırma)
+    [ObservableProperty] private string? _newProjectName;    // yeni proje oluşturma kutusu
+
+    // --- Yönetim (silme + içe aktarma geri alma) ---
+    public ObservableCollection<ImportBatchDto> Batches { get; } = new();
+    [ObservableProperty] private ImportBatchDto? _selectedBatch;
+
+    public ObservableCollection<ManagedComponentRow> ManagedComponents { get; } = new();
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasManagedComponent))]
+    private ManagedComponentRow? _selectedManagedComponent;
+    public bool HasManagedComponent => SelectedManagedComponent != null;
+    [ObservableProperty] private string? _manageSearchText;
+
+    // Silmek için işaretli komponent sayısı + onay penceresi durumu
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectedManageCountText))]
+    private int _selectedManageCount;
+    public string SelectedManageCountText =>
+        SelectedManageCount == 0 ? "Silmek için işaretle" : $"{SelectedManageCount} komponent seçili";
+
+    [ObservableProperty] private bool _isConfirmingDelete;
+    [ObservableProperty] private string _deleteConfirmMessage = "";
+
+    public ObservableCollection<ManagedOfferDto> ManagedOffers { get; } = new();
+    [ObservableProperty] private ManagedOfferDto? _selectedManagedOffer;
 
     [ObservableProperty] private string _bomName = "";
     [ObservableProperty] private string _bomTotalsDisplay = "—";
@@ -95,11 +127,12 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private int _addQuantity = 1;
     [ObservableProperty] private string? _addReferences;
 
-    public MainWindowViewModel(ComponentQueryService query, SearchService search, BomService bom)
+    public MainWindowViewModel(ComponentQueryService query, SearchService search, BomService bom, DataManagementService mgmt)
     {
         _query = query;
         _search = search;
         _bom = bom;
+        _mgmt = mgmt;
         _ = LoadAsync();
     }
 
@@ -120,6 +153,22 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             PrimaryHeader = "Değer";
             SecondaryHeader = "2. Değer";
+        }
+    }
+
+    // Tipe göre kısa bilgi — seçimde DEĞİL, arama/temizle sonrası çağrılır.
+    private void UpdateTypeInfo(int? typeId)
+    {
+        var info = typeId is int id ? TypeInfoContent.Get(id) : null;
+        if (info.HasValue)
+        {
+            TypeInfoTitle = info.Value.Title;
+            TypeInfoBody = info.Value.Body;
+            HasTypeInfo = true;
+        }
+        else
+        {
+            HasTypeInfo = false;
         }
     }
 
@@ -161,6 +210,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
         _bomReady = true;
         await RefreshBomAsync();
+
+        await RefreshManagementAsync();
     }
 
     [RelayCommand]
@@ -180,6 +231,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         FillComponents(await _search.SearchAsync(criteria));
         UpdateHeaders(typeId);   // başlıklar sonuçlarla birlikte (Ara'ya basınca) değişsin
+        UpdateTypeInfo(typeId);  // tip bilgisi de arama sonrası çıksın
         Status = $"{Components.Count} sonuç bulundu.";
     }
 
@@ -195,6 +247,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         FillComponents(await _query.GetAllAsync());
         UpdateHeaders(null);
+        UpdateTypeInfo(null);
         Status = $"{Components.Count} komponent yüklendi.";
     }
 
@@ -242,9 +295,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 fixedParams = new Dictionary<string, string> { ["subtype"] = ImportSubtype.Trim() };
 
             Status = "İçe aktarılıyor...";
-            var result = await import.ImportAsync(path, ImportType!.Id, source, currency, fixedParams);
+            var result = await import.ImportAsync(path, ImportType!.Id, source, currency, fixedParams, ImportNote);
 
             FillComponents(await _query.GetAllAsync());
+            await RefreshManagementAsync();   // Yönetim sekmesi anında güncellensin
             Status = $"İçe aktarma bitti: {result.Added} eklendi, {result.Updated} güncellendi, {result.Errors.Count} hata.";
 
             var lines = new System.Text.StringBuilder();
@@ -355,8 +409,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task NewBomAsync()
     {
-        var name = string.IsNullOrWhiteSpace(BomNameInput) ? $"Proje {BomLists.Count + 1}" : BomNameInput!.Trim();
+        var name = string.IsNullOrWhiteSpace(NewProjectName) ? $"Proje {BomLists.Count + 1}" : NewProjectName!.Trim();
         int id = await _bom.CreateListAsync(name);
+        NewProjectName = null;
         await RefreshBomListsAsync();
         SelectBomListById(id);
         Status = $"Proje oluşturuldu: {name}";
@@ -383,6 +438,115 @@ public partial class MainWindowViewModel : ViewModelBase
         await RefreshBomListsAsync();
         SelectBomListById(BomLists.FirstOrDefault()?.Id ?? 0);
         Status = "Proje silindi.";
+    }
+
+    // --- Yönetim komutları ---
+
+    // Seçili komponent değişince tekliflerini yükle.
+    partial void OnSelectedManagedComponentChanged(ManagedComponentRow? value)
+    {
+        _ = LoadManagedOffersAsync(value?.Id);
+    }
+
+    private async Task LoadManagedOffersAsync(int? componentId)
+    {
+        ManagedOffers.Clear();
+        if (componentId == null) return;
+        foreach (var o in await _mgmt.GetOffersAsync(componentId.Value))
+            ManagedOffers.Add(o);
+    }
+
+    private async Task RefreshManagementAsync()
+    {
+        Batches.Clear();
+        foreach (var b in await _mgmt.GetBatchesAsync())
+            Batches.Add(b);
+
+        ManagedComponents.Clear();
+        var comps = string.IsNullOrWhiteSpace(ManageSearchText)
+            ? await _query.GetAllAsync()
+            : await _search.SearchAsync(new SearchCriteria { Text = ManageSearchText });
+        foreach (var c in comps)
+        {
+            var row = new ManagedComponentRow
+            {
+                Id = c.Id,
+                Mpn = c.Mpn,
+                Manufacturer = c.Manufacturer,
+                TypeDisplay = c.TypeDisplay,
+                OfferCount = c.OfferCount
+            };
+            row.PropertyChanged += ManagedRow_PropertyChanged;
+            ManagedComponents.Add(row);
+        }
+        UpdateSelectedManageCount();
+    }
+
+    private void ManagedRow_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ManagedComponentRow.IsSelected))
+            UpdateSelectedManageCount();
+    }
+
+    private void UpdateSelectedManageCount()
+        => SelectedManageCount = ManagedComponents.Count(r => r.IsSelected);
+
+    [RelayCommand]
+    private async Task ManageSearchAsync() => await RefreshManagementAsync();
+
+    [RelayCommand]
+    private async Task UndoBatchAsync()
+    {
+        if (SelectedBatch == null) { Status = "Önce bir içe aktarma seç."; return; }
+
+        await _mgmt.UndoBatchAsync(SelectedBatch.Id);
+        await RefreshManagementAsync();
+        FillComponents(await _query.GetAllAsync());   // Arama listesini tazele
+        await RefreshBomAsync();                       // BOM etkilenmiş olabilir
+        Status = "İçe aktarma geri alındı.";
+    }
+
+    // "Seçili komponentleri sil" → önce onay penceresi göster.
+    [RelayCommand]
+    private void RequestDeleteComponents()
+    {
+        int n = ManagedComponents.Count(r => r.IsSelected);
+        if (n == 0) { Status = "Önce silmek için komponent(ler) işaretle."; return; }
+        DeleteConfirmMessage = $"{n} komponent (ve teklifleri) silinecek. Emin misiniz? Bu işlem geri alınamaz.";
+        IsConfirmingDelete = true;
+    }
+
+    [RelayCommand]
+    private void CancelDelete() => IsConfirmingDelete = false;
+
+    // Onaylanınca: işaretli tüm komponentleri sil.
+    [RelayCommand]
+    private async Task ConfirmDeleteAsync()
+    {
+        IsConfirmingDelete = false;
+
+        var ids = ManagedComponents.Where(r => r.IsSelected).Select(r => r.Id).ToList();
+        foreach (var id in ids)
+            await _mgmt.DeleteComponentAsync(id);
+
+        ManagedOffers.Clear();
+        await RefreshManagementAsync();
+        FillComponents(await _query.GetAllAsync());
+        await RefreshBomAsync();
+        Status = $"{ids.Count} komponent silindi.";
+    }
+
+    [RelayCommand]
+    private async Task DeleteManagedOfferAsync()
+    {
+        if (SelectedManagedOffer == null) { Status = "Önce bir teklif seç."; return; }
+
+        int? compId = SelectedManagedComponent?.Id;
+        await _mgmt.DeleteOfferAsync(SelectedManagedOffer.OfferId);
+        await LoadManagedOffersAsync(compId);   // teklif panelini tazele (komponent seçili kalır)
+        FillComponents(await _query.GetAllAsync());
+        await RefreshBomAsync();
+        Status = "Teklif silindi.";
     }
 
     // Kaydetme diyaloğundan gelen yola BOM'u CSV olarak yazar (code-behind çağırır).

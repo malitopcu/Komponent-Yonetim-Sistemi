@@ -39,6 +39,13 @@ public class ImportService
             if (identity == "Mpn")          { comp.Mpn = Clean(rawValue); continue; }
             if (identity == "Manufacturer") { comp.Manufacturer = Clean(rawValue); continue; }
 
+            if (SynonymDictionary.IsRohsHeader(header))
+            {
+                var r = SynonymDictionary.NormalizeRohs(rawValue);
+                if (!string.IsNullOrEmpty(r)) comp.Rohs = r;
+                continue;
+            }
+
             string? paramKey = SynonymDictionary.ResolveParameter(header);
             if (paramKey != null && paramDefs.TryGetValue(paramKey, out var def))
             {
@@ -89,12 +96,13 @@ public class ImportService
     {
         public int Added { get; set; }
         public int Updated { get; set; }
+        public int BatchId { get; set; }
         public List<string> UnmappedHeaders { get; set; } = new();
         public List<string> MissingExpected { get; set; } = new();   // tipte olması beklenen ama dosyada olmayan parametreler
         public List<string> Errors { get; set; } = new();
     }
 
-    public async Task<ImportResult> ImportAsync(string filePath, int componentTypeId, string source, string? defaultCurrency = null, Dictionary<string, string>? fixedParams = null)
+    public async Task<ImportResult> ImportAsync(string filePath, int componentTypeId, string source, string? defaultCurrency = null, Dictionary<string, string>? fixedParams = null, string? note = null)
     {
         var result = new ImportResult();
         var paramDefs = LoadParameters(componentTypeId);
@@ -114,6 +122,7 @@ public class ImportService
                 result.MissingExpected.Add(def.DisplayName);
 
         var unmappedSet = new HashSet<string>();
+        var pending = new List<PendingChange>();
 
         await using var transaction = await _db.Database.BeginTransactionAsync();
 
@@ -136,27 +145,62 @@ public class ImportService
             if (existing == null)
             {
                 _db.Components.Add(comp);
-                AddOrUpdateOffer(comp, row, source, defaultCurrency);
+                pending.Add(new PendingChange("Component", () => comp.Id, "Added", null));
+
+                var added = UpsertOffer(comp, row, source, defaultCurrency);
+                pending.Add(new PendingChange("Offer", () => added.offer.Id, added.wasUpdate ? "Updated" : "Added", added.prevJson));
                 result.Added++;
             }
             else
             {
+                var compPrev = System.Text.Json.JsonSerializer.Serialize(
+                    new ComponentPrev(existing.PrimaryValueSi, existing.SecondaryValueSi, existing.ParamsJson, existing.Rohs));
                 existing.PrimaryValueSi = comp.PrimaryValueSi;
                 existing.SecondaryValueSi = comp.SecondaryValueSi;
                 existing.ParamsJson = comp.ParamsJson;
-                AddOrUpdateOffer(existing, row, source, defaultCurrency);
+                if (!string.IsNullOrEmpty(comp.Rohs)) existing.Rohs = comp.Rohs;
+                pending.Add(new PendingChange("Component", () => existing.Id, "Updated", compPrev));
+
+                var up = UpsertOffer(existing, row, source, defaultCurrency);
+                pending.Add(new PendingChange("Offer", () => up.offer.Id, up.wasUpdate ? "Updated" : "Added", up.prevJson));
                 result.Updated++;
             }
         }
 
+        await _db.SaveChangesAsync();   // id'ler burada atanır
+
+        // İçe aktarma partisini + tekil değişiklikleri kaydet (geri alma için).
+        var typeName = (await _db.ComponentTypes.FindAsync(componentTypeId))?.Name ?? "";
+        var batch = new ImportBatch
+        {
+            FileName = System.IO.Path.GetFileName(filePath),
+            Source = source,
+            TypeName = typeName,
+            ImportedAt = DateTime.Now,
+            AddedCount = result.Added,
+            UpdatedCount = result.Updated,
+            Note = note?.Trim() ?? ""
+        };
+        foreach (var p in pending)
+            batch.Changes.Add(new ImportChange
+            {
+                EntityType = p.EntityType,
+                EntityId = p.GetId(),
+                Operation = p.Operation,
+                PrevJson = p.PrevJson
+            });
+        _db.ImportBatches.Add(batch);
         await _db.SaveChangesAsync();
+
         await transaction.CommitAsync();
 
         result.UnmappedHeaders = unmappedSet.ToList();
+        result.BatchId = batch.Id;
         return result;
     }
 
-    private void AddOrUpdateOffer(Component comp, Dictionary<string, string> row, string source, string? defaultCurrency)
+    // Teklifi ekler ya da günceller. Döner: (teklif, güncelleme miydi, güncellemeyse eski değerlerin JSON'u).
+    private (Offer offer, bool wasUpdate, string? prevJson) UpsertOffer(Component comp, Dictionary<string, string> row, string source, string? defaultCurrency)
     {
         double? price = null;
         string? sourcePartNo = null;
@@ -178,23 +222,45 @@ public class ImportService
         // Aynı satıcı (boşluk/büyük-küçük harf farkını yok say) → yeni teklif açma, güncelle.
         var offer = comp.Offers.FirstOrDefault(o =>
             string.Equals(o.Source?.Trim(), source?.Trim(), StringComparison.OrdinalIgnoreCase));
+
         if (offer == null)
         {
-            comp.Offers.Add(new Offer
+            offer = new Offer
             {
                 Source = source,
                 SourcePartNo = sourcePartNo ?? "",
                 Price = price,
                 Currency = currency,
                 PriceUpdatedAt = price.HasValue ? DateTime.UtcNow : null
-            });
+            };
+            comp.Offers.Add(offer);
+            return (offer, false, null);
         }
-        else
+
+        // Güncelleme: önce eski hali sakla (geri alma için).
+        var prev = System.Text.Json.JsonSerializer.Serialize(
+            new OfferPrev(offer.Price, offer.Currency, offer.SourcePartNo, offer.PriceUpdatedAt));
+
+        offer.Price = price;
+        offer.Currency = currency ?? offer.Currency;
+        offer.SourcePartNo = sourcePartNo ?? offer.SourcePartNo;
+        offer.PriceUpdatedAt = price.HasValue ? DateTime.UtcNow : offer.PriceUpdatedAt;
+        return (offer, true, prev);
+    }
+
+    // İçe aktarma sırasında biriktirilen değişiklik (id'ler save sonrası okunur).
+    private class PendingChange
+    {
+        public string EntityType;
+        public Func<int> GetId;
+        public string Operation;
+        public string? PrevJson;
+        public PendingChange(string entityType, Func<int> getId, string operation, string? prevJson)
         {
-            offer.Price = price;
-            offer.Currency = currency ?? offer.Currency;
-            offer.SourcePartNo = sourcePartNo ?? offer.SourcePartNo;
-            offer.PriceUpdatedAt = price.HasValue ? DateTime.UtcNow : offer.PriceUpdatedAt;
+            EntityType = entityType;
+            GetId = getId;
+            Operation = operation;
+            PrevJson = prevJson;
         }
     }
 

@@ -72,7 +72,7 @@ public static class SynonymDictionary
         "features", "ratings", "vasıf", "applications", "failure rate",
         "mounting type", "sonlandırma stili", "sonlandırma",
         "size / dimension", "height - seated (max)", "yükseklik", "thickness (max)",
-        "lead spacing", "lead style", "url", "rohs", "ürün",
+        "lead spacing", "lead style", "url", "ürün",
         "uzunluk", "genişlik", "kasa kodu - mm",
     };
 
@@ -83,6 +83,26 @@ public static class SynonymDictionary
     // Başlık bilinen bir meta/atlanabilir sütun mu? (rapordaki gürültüyü keser)
     public static bool IsIgnorable(string header)
         => IgnoreSet.Contains(header.Trim().Replace('İ', 'i').ToLowerInvariant());
+
+    // Başlık RoHS sütunu mu?
+    public static bool IsRohsHeader(string header)
+    {
+        var h = header.Trim().Replace('İ', 'i').ToLowerInvariant();
+        return h == "rohs" || h == "rohs status" || h == "rohs uyumlu";
+    }
+
+    // RoHS hücre değeri → "Uyumlu" / "Uyumsuz" / "" (bilinmiyor).
+    public static string NormalizeRohs(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        var v = value.Trim().Replace('İ', 'i').ToLowerInvariant();
+        if (v.Contains("uyumsuz") || v.Contains("non-compliant") || v.Contains("noncompliant")
+            || v.Contains("not compliant") || v.Contains("değil"))
+            return "Uyumsuz";
+        if (v.Contains("uyumlu") || v.Contains("compliant") || v.Contains("rohs"))
+            return "Uyumlu";
+        return "";
+    }
 
     private static string? Lookup(Dictionary<string, string> map, string header)
     {

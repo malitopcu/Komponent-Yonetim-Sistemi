@@ -16,4 +16,7 @@ public static class ServiceFactory
 
     public static BomService CreateBomService()
         => new BomService(new AppDbContext());
+
+    public static DataManagementService CreateDataManagementService()
+        => new DataManagementService(new AppDbContext());
 }

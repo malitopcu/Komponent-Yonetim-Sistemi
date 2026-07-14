@@ -15,6 +15,7 @@ public class ComponentSummaryDto
     public string? Package { get; init; }
     public string? Subtype { get; init; }        // JSON'dan: ZENER, SCHOTTKY...
     public string? Tolerance { get; init; }      // JSON'dan: ±1%, ±0.25PF...
+    public string Rohs { get; init; } = "";      // Uyumlu / Uyumsuz / "" (bilinmiyor)
 
     public string? PrimaryUnit { get; init; }
     public string? SecondaryUnit { get; init; }
