@@ -47,6 +47,8 @@ public class ImportService
             }
 
             string? paramKey = SynonymDictionary.ResolveParameter(header);
+            if (paramKey == "package" && SynonymDictionary.IsPackagingValue(rawValue))
+                continue;   // "Tape & Reel" gibi paketleme değeri → kasa/paket değil, atla
             if (paramKey != null && paramDefs.TryGetValue(paramKey, out var def))
             {
                 if (def.DataType == "numeric")
