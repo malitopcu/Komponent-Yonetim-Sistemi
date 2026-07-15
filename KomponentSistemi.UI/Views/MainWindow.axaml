@@ -484,6 +484,59 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="KiCad">
+                <ScrollViewer>
+                    <StackPanel Spacing="16" Margin="4,12,4,4" HorizontalAlignment="Stretch">
+
+                        <TextBlock Text="KiCad Footprint Aktarımı" FontSize="18" FontWeight="Bold"/>
+                        <TextBlock Text="Proje seç → şemayı seç → Önizle → footprint'leri şemaya yaz (referansla eşleşir, önce yedek alınır)."
+                                   Opacity="0.6" FontSize="12" TextWrapping="Wrap"/>
+
+                        <!-- Proje (BOM) seçimi -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Proje (BOM):" VerticalAlignment="Center"/>
+                            <ComboBox ItemsSource="{Binding BomLists}"
+                                      SelectedItem="{Binding SelectedBomList}"
+                                      MinWidth="240" PlaceholderText="Proje seç">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="svc:BomListDto">
+                                        <TextBlock Text="{Binding Display}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <!-- Şema yolu + Gözat -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBox Text="{Binding SchematicPath}" Width="560"
+                                     Watermark=".kicad_sch yolu (yapıştır ya da Gözat ile seç)"/>
+                            <Button Content="Gözat…" Click="KiCadBrowse_Click"/>
+                        </StackPanel>
+
+                        <!-- Butonlar -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Önizle" Command="{Binding KiCadPreviewCommand}"/>
+                            <Button Content="Şemaya Yaz" Command="{Binding KiCadWriteCommand}" Classes="accent"/>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding KiCadStatus}" TextWrapping="Wrap" Opacity="0.8"/>
+
+                        <!-- Eşleşme tablosu -->
+                        <DataGrid ItemsSource="{Binding KiCadRows}" AutoGenerateColumns="False" IsReadOnly="True"
+                                  Height="360" CanUserResizeColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Ref"       Binding="{Binding Reference}"  Width="Auto"/>
+                                <DataGridTextColumn Header="Değer"     Binding="{Binding Value}"      Width="Auto"/>
+                                <DataGridTextColumn Header="Durum"     Binding="{Binding StatusText}" Width="1.4*"/>
+                                <DataGridTextColumn Header="MPN"       Binding="{Binding Mpn}"        Width="1.6*"/>
+                                <DataGridTextColumn Header="Footprint" Binding="{Binding Footprint}"  Width="3*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
         </TabControl>
 
     </DockPanel>

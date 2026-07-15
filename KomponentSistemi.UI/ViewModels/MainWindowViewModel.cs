@@ -20,6 +20,11 @@ public partial class MainWindowViewModel : ViewModelBase
     // Aktif (varsayılan) projenin kimliği — LoadAsync'te çözülür.
     private int _bomListId;
 
+    // --- KiCad footprint (Adım 6) ---
+    [ObservableProperty] private string? _schematicPath;
+    [ObservableProperty] private string _kiCadStatus = "";
+    public ObservableCollection<KiCadMatchRow> KiCadRows { get; } = new();
+
     public ObservableCollection<ComponentSummaryDto> Components { get; } = new();
     public ObservableCollection<ComponentTypeDto> Types { get; } = new();
     public ObservableCollection<ComponentTypeDto> FilterTypes { get; } = new();  // "Tümü" + tipler (arama filtresi)
@@ -175,6 +180,31 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task LoadDetailAsync(ComponentSummaryDto? row)
     {
         Detail = row == null ? null : await _query.GetDetailAsync(row.Id);
+    }
+
+    [RelayCommand]
+    private void KiCadPreview()
+    {
+        KiCadRows.Clear();
+        if (string.IsNullOrWhiteSpace(SchematicPath)) { KiCadStatus = "Önce bir .kicad_sch dosyası seç."; return; }
+
+        var res = new KiCadMatchService().Match(SchematicPath, _bomListId);
+        foreach (var r in res.Rows) KiCadRows.Add(r);
+        int found = res.Rows.Count(r => r.Status == KiCadMatchStatus.FootprintFound);
+        KiCadStatus = res.Errors.Count > 0
+            ? string.Join(" | ", res.Errors)
+            : $"{found} sembol footprint aldı ({KiCadRows.Count} satır). 'Şemaya Yaz' ile aktar.";
+    }
+
+    [RelayCommand]
+    private void KiCadWrite()
+    {
+        if (string.IsNullOrWhiteSpace(SchematicPath)) { KiCadStatus = "Önce bir .kicad_sch dosyası seç."; return; }
+
+        var res = new KiCadWriteService().Write(SchematicPath, _bomListId);
+        KiCadStatus = res.Errors.Count > 0
+            ? string.Join(" | ", res.Errors)
+            : $"{res.Written} footprint yazıldı ✓  Yedek: {System.IO.Path.GetFileName(res.BackupPath)}";
     }
 
     private async Task LoadAsync()

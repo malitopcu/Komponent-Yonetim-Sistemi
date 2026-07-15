@@ -141,6 +141,13 @@ public static class SeedData
                 Id = 504, ComponentTypeId = 5, Key = "package", DisplayName = "Paket", Unit = null, DataType = "text",
                 IsSearchable = true, HotColumn = null
             },
+            new ParameterDefinition
+            {
+                // DigiKey "Package / Case" osilatörde boyutsuz ("4-SMD, No Lead"); gerçek boyut
+                // "Size / Dimension" sütununda. Footprint seçimi için boyutu ayrı param olarak tutuyoruz.
+                Id = 505, ComponentTypeId = 5, Key = "size", DisplayName = "Boyut", Unit = null, DataType = "text",
+                IsSearchable = false, HotColumn = null
+            },
 
             // --- Regülatör (Id=6) ---
             new ParameterDefinition

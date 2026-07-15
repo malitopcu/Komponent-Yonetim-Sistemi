@@ -63,6 +63,9 @@ public static class SynonymDictionary
         ["frekans"]                 = "frequency",
         ["voltage - supply"]        = "supply_voltage",
         ["frequency stability"]     = "frequency_tolerance",
+        // Osilatörde gerçek boyut burada (footprint için). Sadece "size" tanımı olan tip
+        // (osilatör) saklar; diğer tiplerde IgnoreSet fallback'i sessizce atar.
+        ["size / dimension"]        = "size",
 
         // --- LCSC başlıkları ---
         // Transistör

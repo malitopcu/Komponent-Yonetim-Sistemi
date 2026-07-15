@@ -71,6 +71,25 @@ public partial class MainWindow : Window
             vm.StagedFilePath = path;   // içe aktarma değil, sadece seç (staged)
     }
 
+    // KiCad sekmesi "Gözat" → .kicad_sch seç, yolu ViewModel'e yaz.
+    private async void KiCadBrowse_Click(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "KiCad şeması seçin",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("KiCad şema") { Patterns = new[] { "*.kicad_sch" } }
+            }
+        });
+
+        if (files.Count == 0) return;
+        var path = files[0].TryGetLocalPath();
+        if (path != null && DataContext is MainWindowViewModel vm)
+            vm.SchematicPath = path;
+    }
+
     // "CSV Dışa Aktar" butonu: kaydetme yeri sordur, yolu ViewModel'e teslim et.
     private async void ExportBomButton_Click(object? sender, RoutedEventArgs e)
     {
