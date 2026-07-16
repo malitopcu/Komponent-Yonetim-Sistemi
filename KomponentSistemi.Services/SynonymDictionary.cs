@@ -47,6 +47,10 @@ public static class SynonymDictionary
         ["power"]                   = "power",
         ["power (watts)"]           = "power",
         ["güç"]                     = "power",
+        // Pot/trimpot (Direnç alt türü)
+        ["resistance (ohms)"]       = "resistance",
+        ["taper"]                   = "taper",
+        ["number of turns"]         = "turns",
         // Diyot (DigiKey EN)
         ["voltage - dc reverse (vr) (max)"]   = "reverse_voltage",
         ["voltage - zener (nom) (vz)"]        = "reverse_voltage",
@@ -89,6 +93,13 @@ public static class SynonymDictionary
         ["reverse stand-off voltage (vrwm)"] = "reverse_voltage",
         // Paket (kasa) — "Tape & Reel" gibi paketleme değerleri ImportService'te elenir
         ["package"]                          = "package",
+
+        // Konnektör (DigiKey wire-to-board)
+        ["positions per level"]              = "positions",
+        ["current"]                          = "current",
+        ["voltage"]                          = "voltage",
+        ["pitch"]                            = "pitch",
+        ["mounting type"]                    = "mounting",
     };
 
     // Bilinen meta/lojistik/medya başlıkları — komponent parametresi değil, sessizce atlanır.
@@ -103,6 +114,12 @@ public static class SynonymDictionary
         "size / dimension", "height - seated (max)", "yükseklik", "thickness (max)",
         "lead spacing", "lead style", "url", "ürün",
         "uzunluk", "genişlik", "kasa kodu - mm",
+        // Konnektör meta (parametre değil)
+        "number of levels", "mating orientation", "wire gauge", "wire termination", "color",
+        // Pot/trimpot mekanik meta (parametre değil)
+        "adjustment type", "resistive material", "termination style", "built in switch",
+        "number of gangs", "rotation", "actuator type", "actuator length", "actuator diameter",
+        "bushing thread", "mounting type",
         // LCSC meta / şemada olmayan sütunlar
         "availability", "minimum", "multiples", "product detail", "packaging", "number",
         "configuration", "number of outputs", "output configuration", "operating voltage",

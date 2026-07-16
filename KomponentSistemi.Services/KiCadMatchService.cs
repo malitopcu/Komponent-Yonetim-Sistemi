@@ -51,7 +51,8 @@ public class KiCadMatchService
 
         var items = db.BomItems.AsNoTracking()
             .Where(i => i.BomListId == listId)
-            .Select(i => new { i.References, i.Component.Mpn, i.Component.ComponentTypeId, i.Component.ParamsJson })
+            .Select(i => new { i.References, i.Component.Mpn, i.Component.ComponentTypeId,
+                               i.Component.ParamsJson, i.Component.PrimaryValueSi, i.Component.SecondaryValueSi })
             .ToList();
 
         foreach (var sym in read.Symbols)
@@ -71,8 +72,7 @@ public class KiCadMatchService
                 continue;
             }
 
-            var (pkg, sub, size) = ReadParams(hit.ParamsJson);
-            string? fp = FootprintMapper.Resolve(hit.ComponentTypeId, pkg, sub, size);
+            string? fp = FootprintMapper.Resolve(hit.ComponentTypeId, hit.ParamsJson, hit.PrimaryValueSi, hit.SecondaryValueSi);
             result.Rows.Add(new KiCadMatchRow
             {
                 Reference = sym.Reference,

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace KomponentSistemi.Services;
@@ -36,24 +37,47 @@ public static class FootprintMapper
         ["3216"] = "1206", ["3225"] = "1210",
     };
 
-    // ANA GİRİŞ: tip + paket (+ subtype, + osilatörde size) → footprint ya da null.
-    public static string? Resolve(int componentTypeId, string? package, string? subtype, string? size = null)
+    // ANA GİRİŞ: tip + ParamsJson + hot sütunlar (primary/secondary) → footprint ya da null.
+    // ParamsJson'ı TEK yerde (burada) ayrıştırırız; yeni tip/param eklemek imzayı değiştirmez.
+    public static string? Resolve(int componentTypeId, string? paramsJson, double? primary = null, double? secondary = null)
     {
-        string p = (package ?? "").ToUpperInvariant();
+        var pr = ParseParams(paramsJson);
+        string? package = Val(pr, "package");
+        string? subtype = Val(pr, "subtype");
+        string pkgUp = (package ?? "").ToUpperInvariant();
+
         switch (componentTypeId)
         {
-            case 1: return Passive(package, "C", "Capacitor_SMD") ?? CapTht(p);   // Kondansatör (SMD→THT)
-            case 2: return Passive(package, "R", "Resistor_SMD") ?? ResTht(p);    // Direnç (SMD→THT)
-            case 3:                                                   // Diyot
+            case 1: return Passive(package, "C", "Capacitor_SMD") ?? CapTht(pkgUp);   // Kondansatör (SMD→THT)
+            case 2: return Passive(package, "R", "Resistor_SMD") ?? ResTht(pkgUp);    // Direnç (pot/trimpot paketi yok → null)
+            case 3:                                                                   // Diyot
                 if (string.Equals(subtype, "LED", StringComparison.OrdinalIgnoreCase))
                     return Led(package);
-                return MatchTokens(p, DiodeTable);
-            case 4: return MatchTokens(p, ToSotTable);               // Transistör
-            case 6: return MatchTokens(p, ToSotTable);               // Regülatör
-            case 5: return Oscillator(size);   // Osilatör: paket boyutsuz → Size/Dimension'dan
+                return MatchTokens(pkgUp, DiodeTable);
+            case 4: return MatchTokens(pkgUp, ToSotTable);                            // Transistör
+            case 6: return MatchTokens(pkgUp, ToSotTable);                            // Regülatör
+            case 5: return Oscillator(Val(pr, "size"));                              // Osilatör: Size/Dimension'dan
+            case 7: return Connector(Val(pr, "pitch"), primary, Val(pr, "mounting")); // Konnektör: pitch + pozisyon(primary)
             default: return null;
         }
     }
+
+    // ParamsJson → sözlük (anahtar duyarsız). Değerler string olarak alınır.
+    private static Dictionary<string, string> ParseParams(string? json)
+    {
+        var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(json)) return d;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            foreach (var m in doc.RootElement.EnumerateObject())
+                d[m.Name] = m.Value.ValueKind == JsonValueKind.String ? (m.Value.GetString() ?? "") : m.Value.ToString();
+        }
+        catch { /* bozuk JSON → boş */ }
+        return d;
+    }
+
+    private static string? Val(Dictionary<string, string> d, string key) => d.TryGetValue(key, out var v) ? v : null;
 
     // Baştaki emperyal kodu yakalar: "0402 (1005 METRIC)" → "0402", "01005 ..." → "01005".
     private static string? LeadCode(string? pkg)
@@ -123,6 +147,35 @@ public static class FootprintMapper
         ["7.0x5.0"] = "Oscillator:Oscillator_SMD_SeikoEpson_SG8002CA-4Pin_7.0x5.0mm",
         // 2.0x1.6mm: KiCad'de 4-pin osilatör footprint'i YOK → eşleşmez (null).
     };
+
+    // Konnektör (vidalı klemens): footprint'i PITCH + POZİSYON belirler (kasa kodu değil).
+    // Genel inşa: jenerik "TerminalBlock" kütüphanesindeki MaiXu MX126-5.0 (5.00mm); her N poz için.
+    // 5.08mm de 5.00'e yakınsanır. Başka pitch veya SMD/bilinmeyen → dürüst null.
+    private static string? Connector(string? pitch, double? positions, string? mounting)
+    {
+        if (positions is null) return null;
+        int n = (int)Math.Round(positions.Value);
+        if (n < 2) return null;
+
+        // SMD klemensler vendor'a özel → yalnız delikli (THT). Montaj bilinmiyorsa THT varsayılır.
+        if (mounting is not null && !mounting.ToUpperInvariant().Contains("THROUGH")) return null;
+
+        double mm = PitchMm(pitch);
+        // KiCad'in jenerik "TerminalBlock" kütüphanesindeki MaiXu MX126-5.0 serisi (5.00mm, N poz).
+        // {n:D2} → 02/03/04… ; 5.08mm de 5.00'e yakınsanır.
+        if (mm is >= 4.9 and <= 5.2)
+            return $"TerminalBlock:TerminalBlock_MaiXu_MX126-5.0-{n:D2}P_1x{n:D2}_P5.00mm";
+        return null;   // diğer pitch'ler jenerik değil → null
+    }
+
+    // "0.200\" (5.08mm)" → 5.08 ; bulunamazsa 0.
+    private static double PitchMm(string? pitch)
+    {
+        if (string.IsNullOrWhiteSpace(pitch)) return 0;
+        var m = Regex.Match(pitch, @"([\d.]+)\s*mm", RegexOptions.IgnoreCase);
+        return m.Success && double.TryParse(m.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)
+            ? d : 0;
+    }
 
     // Öncelik SIRALI token tablosu: pakette geçen ilk grup kazanır.
     // fp == null olan giriş: "tanı ama footprint atama" — belirsiz/çok-bacaklı

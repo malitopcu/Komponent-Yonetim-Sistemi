@@ -329,6 +329,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
             FillComponents(await _query.GetAllAsync());
             await RefreshManagementAsync();   // Yönetim sekmesi anında güncellensin
+            await RefreshBomAsync();          // teklif/fiyat değişince BOM tablosu da anında tazelensin
             Status = $"İçe aktarma bitti: {result.Added} eklendi, {result.Updated} güncellendi, {result.Errors.Count} hata.";
 
             var lines = new System.Text.StringBuilder();
@@ -362,6 +363,8 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         await _bom.AddItemAsync(_bomListId, SelectedRow.Id, AddQuantity, AddReferences);
+        await RefreshBomListsAsync();      // proje sayısı (ör. 6→7) anında güncellensin
+        SelectBomListById(_bomListId);     // aktif projeyi yeni DTO ile yeniden seç → BOM tablosu da tazelenir
         await RefreshBomAsync();
 
         Status = $"Projeye eklendi: {SelectedRow.Mpn} ×{AddQuantity}";
@@ -376,6 +379,8 @@ public partial class MainWindowViewModel : ViewModelBase
         if (row == null) return;
 
         await _bom.RemoveItemAsync(row.BomItemId);
+        await RefreshBomListsAsync();      // proje sayısı hemen azalsın
+        SelectBomListById(_bomListId);
         await RefreshBomAsync();
         Status = $"Projeden çıkarıldı: {row.Mpn}";
     }

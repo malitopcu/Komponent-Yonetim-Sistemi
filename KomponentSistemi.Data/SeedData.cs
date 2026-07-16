@@ -13,7 +13,8 @@ public static class SeedData
             new ComponentType { Id = 3, Name = "Diyot" },
             new ComponentType { Id = 4, Name = "Transistör" },
             new ComponentType { Id = 5, Name = "Osilatör" },
-            new ComponentType { Id = 6, Name = "Regülatör" }
+            new ComponentType { Id = 6, Name = "Regülatör" },
+            new ComponentType { Id = 7, Name = "Konnektör" }
         );
 
         modelBuilder.Entity<ParameterDefinition>().HasData(
@@ -64,6 +65,22 @@ public static class SeedData
             {
                 Id = 204, ComponentTypeId = 2, Key = "package", DisplayName = "Paket", Unit = null, DataType = "text",
                 IsSearchable = true, HotColumn = null
+            },
+            // Direnç alt türü: sabit direnç / potansiyometre / trimpot
+            new ParameterDefinition
+            {
+                Id = 205, ComponentTypeId = 2, Key = "subtype", DisplayName = "Alt Tür", Unit = null, DataType = "text",
+                IsSearchable = true, HotColumn = null
+            },
+            new ParameterDefinition
+            {
+                Id = 206, ComponentTypeId = 2, Key = "taper", DisplayName = "Taper (Eğri)", Unit = null, DataType = "text",
+                IsSearchable = false, HotColumn = null
+            },
+            new ParameterDefinition
+            {
+                Id = 207, ComponentTypeId = 2, Key = "turns", DisplayName = "Tur Sayısı", Unit = null, DataType = "text",
+                IsSearchable = false, HotColumn = null
             },
 
             // --- Diyot (Id=3) ---
@@ -169,6 +186,33 @@ public static class SeedData
             {
                 Id = 604, ComponentTypeId = 6, Key = "package", DisplayName = "Paket", Unit = null, DataType = "text",
                 IsSearchable = true, HotColumn = null
+            },
+
+            // --- Konnektör (Id=7) ---
+            new ParameterDefinition
+            {
+                Id = 701, ComponentTypeId = 7, Key = "positions", DisplayName = "Pozisyon", Unit = null,
+                DataType = "numeric", IsSearchable = true, HotColumn = "primary"
+            },
+            new ParameterDefinition
+            {
+                Id = 702, ComponentTypeId = 7, Key = "current", DisplayName = "Akım", Unit = "A",
+                DataType = "numeric", IsSearchable = true, HotColumn = "secondary"
+            },
+            new ParameterDefinition
+            {
+                Id = 703, ComponentTypeId = 7, Key = "voltage", DisplayName = "Gerilim", Unit = "V",
+                DataType = "numeric", IsSearchable = false, HotColumn = null
+            },
+            new ParameterDefinition
+            {
+                Id = 704, ComponentTypeId = 7, Key = "pitch", DisplayName = "Aralık (Pitch)", Unit = null,
+                DataType = "text", IsSearchable = false, HotColumn = null
+            },
+            new ParameterDefinition
+            {
+                Id = 705, ComponentTypeId = 7, Key = "mounting", DisplayName = "Montaj", Unit = null,
+                DataType = "text", IsSearchable = false, HotColumn = null
             }
         );
     }

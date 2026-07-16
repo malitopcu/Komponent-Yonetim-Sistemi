@@ -509,7 +509,7 @@
                         <!-- Şema yolu + Gözat -->
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBox Text="{Binding SchematicPath}" Width="560"
-                                     Watermark=".kicad_sch yolu (yapıştır ya da Gözat ile seç)"/>
+                                     PlaceholderText=".kicad_sch yolu (yapıştır ya da Gözat ile seç)"/>
                             <Button Content="Gözat…" Click="KiCadBrowse_Click"/>
                         </StackPanel>
 

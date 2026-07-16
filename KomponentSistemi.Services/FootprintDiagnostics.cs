@@ -16,7 +16,7 @@ public static class FootprintDiagnostics
 
         var comps = db.Components
             .AsNoTracking()
-            .Select(c => new { c.ComponentTypeId, c.ParamsJson })
+            .Select(c => new { c.ComponentTypeId, c.ParamsJson, c.PrimaryValueSi, c.SecondaryValueSi })
             .ToList();
         var typeNames = db.ComponentTypes.AsNoTracking().ToDictionary(t => t.Id, t => t.Name);
 
@@ -31,8 +31,8 @@ public static class FootprintDiagnostics
             foreach (var c in comps.Where(c => c.ComponentTypeId == tid))
             {
                 tot++;
-                var (pkg, sub, size) = ReadParams(c.ParamsJson);
-                var fp = FootprintMapper.Resolve(tid, pkg, sub, size);
+                var (pkg, _, _) = ReadParams(c.ParamsJson);   // sadece "eşleşmedi" etiketi için paket
+                var fp = FootprintMapper.Resolve(tid, c.ParamsJson, c.PrimaryValueSi, c.SecondaryValueSi);
                 if (fp != null)
                 {
                     ok++;
