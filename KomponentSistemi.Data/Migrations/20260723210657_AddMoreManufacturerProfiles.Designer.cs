@@ -3,6 +3,7 @@ using System;
 using KomponentSistemi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KomponentSistemi.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260723210657_AddMoreManufacturerProfiles")]
+    partial class AddMoreManufacturerProfiles
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
@@ -470,30 +473,6 @@ namespace KomponentSistemi.Data.Migrations
                             PowerMapJson = "{}",
                             TcrMapJson = "{}",
                             ToleranceMapJson = "{\"F\":1.0,\"J\":5.0}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 15,
-                            Manufacturer = "Samsung Electro-Mechanics",
-                            Name = "Samsung RC",
-                            PackageMapJson = "{\"0402\":\"01005\",\"0603\":\"0201\",\"1005\":\"0402\",\"1608\":\"0603\",\"2012\":\"0805\",\"3216\":\"1206\",\"3225\":\"1210\",\"5025\":\"2010\",\"6432\":\"2512\"}",
-                            PatternRegex = "^RC(?<size>\\d{4})(?<tol>[DFGJ])(?<value>[0-9R]{3,4})(?:CS|ES|AS)$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"D\":0.5,\"F\":1.0,\"G\":2.0,\"J\":5.0}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 16,
-                            Manufacturer = "",
-                            Name = "Standart boy-W kodu",
-                            PackageMapJson = "{\"0402\":\"0402\",\"0603\":\"0603\",\"0805\":\"0805\",\"1206\":\"1206\",\"1210\":\"1210\",\"2010\":\"2010\",\"2512\":\"2512\"}",
-                            PatternRegex = "^(?<size>0201|0402|0603|0805|1206|1210|2010|2512)W[0-9A-Z](?<tol>[FGJD])(?<value>[0-9R]{3,4})T[0-9A-Z]*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"F\":1.0,\"G\":2.0,\"J\":5.0,\"D\":0.5}",
                             ValueEncoding = "sig-zeros-R"
                         });
                 });

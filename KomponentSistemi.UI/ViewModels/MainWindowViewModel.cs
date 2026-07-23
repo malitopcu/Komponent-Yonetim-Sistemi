@@ -27,6 +27,17 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string _schematicBomStatus = "";
     public ObservableCollection<SchematicBomRow> SchematicBomRows { get; } = new();
 
+    // Komponent Ekle formu (şimdilik dirençlere özel); MPN çözücü opsiyonel hızlandırıcı.
+    [ObservableProperty] private string? _datasheetMpn;
+    [ObservableProperty] private string? _datasheetManufacturer;
+    [ObservableProperty] private string _datasheetStatus = "";
+    [ObservableProperty] private string? _dsOhmsText;
+    [ObservableProperty] private string? _dsPowerText;
+    [ObservableProperty] private string? _dsToleranceText;
+    [ObservableProperty] private string? _dsTcrText;
+    [ObservableProperty] private string? _dsComposition;
+    [ObservableProperty] private string? _dsPackage;
+
     [ObservableProperty] private ComponentDetailDto? _compareA;
     [ObservableProperty] private ComponentDetailDto? _compareB;
     public ObservableCollection<CompareRow> CompareRows { get; } = new();
@@ -296,6 +307,90 @@ public partial class MainWindowViewModel : ViewModelBase
         int skipped = SchematicBomRows.Count - picked.Count;
         SchematicBomStatus = $"{picked.Count} komponent projeye eklendi" + (skipped > 0 ? $", {skipped} atlandı." : ".");
     }
+
+    // MPN'den doldur: bilinen üretici şemalarıyla çözer, çözebildiği alanları yazar.
+    // Çözemezse standart kalıplardan öneri verir; hiçbir alan uydurulmaz.
+    [RelayCommand]
+    private void DecodeComponentMpn()
+    {
+        if (string.IsNullOrWhiteSpace(DatasheetMpn))
+        {
+            DatasheetStatus = "Önce MPN yaz (ya da alanları elle doldurup kaydet).";
+            return;
+        }
+
+        // Önceki MPN'den kalan değerler yenisine aitmiş gibi durmasın: önce temizle.
+        ClearComponentForm(clearMpn: false);
+
+        var res = ServiceFactory.CreateDatasheetComponentService().DecodeMpn(DatasheetMpn);
+
+        if (res.Decoded is { } d)
+        {
+            DsOhmsText = d.Ohms.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            DsToleranceText = d.TolerancePercent?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            DsTcrText = d.TcrPpm?.ToString();
+            DsPowerText = d.PowerW?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (!string.IsNullOrWhiteSpace(d.Package)) DsPackage = d.Package;
+            if (string.IsNullOrWhiteSpace(DatasheetManufacturer) && !string.IsNullOrWhiteSpace(d.Manufacturer))
+                DatasheetManufacturer = d.Manufacturer;
+            DatasheetStatus = $"MPN çözüldü [{d.ProfileName}] — boş kalan alanları elle tamamla.";
+            return;
+        }
+
+        if (res.Suggestions.Count == 1)
+        {
+            DsOhmsText = res.Suggestions[0].Ohms.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            DatasheetStatus = $"Profil yok; standart kalıptan ÖNERİ ({res.Suggestions[0].Reason}) — kontrol et.";
+            return;
+        }
+
+        DatasheetStatus = res.Suggestions.Count > 1
+            ? "Profil yok; adaylar: " + string.Join(", ", res.Suggestions.Select(x =>
+                  $"{x.Ohms.ToString(System.Globalization.CultureInfo.InvariantCulture)} Ω ({x.Reason})"))
+            : "MPN çözülemedi — alanları elle doldur.";
+    }
+
+    [RelayCommand]
+    private async Task SaveDatasheetComponentAsync()
+    {
+        var svc = ServiceFactory.CreateDatasheetComponentService();
+        var (ok, message) = await svc.SaveAsync(new DatasheetComponentService.SaveRequest
+        {
+            Mpn = DatasheetMpn ?? "",
+            Manufacturer = DatasheetManufacturer ?? "",
+            Ohms = ParseUserDouble(DsOhmsText),
+            PowerW = ParseUserDouble(DsPowerText),
+            TolerancePercent = ParseUserDouble(DsToleranceText),
+            TcrPpm = int.TryParse(DsTcrText?.Trim(), out var tcr) ? tcr : null,
+            Composition = DsComposition,
+            Package = DsPackage,
+        });
+
+        DatasheetStatus = message;
+        if (!ok) return; // hata ekranda kalsın, form silinmesin
+
+        ClearComponentForm(clearMpn: true);
+        await Task.Delay(4000);
+        if (DatasheetStatus == message) DatasheetStatus = ""; // araya yeni mesaj girdiyse dokunma
+    }
+
+    private void ClearComponentForm(bool clearMpn)
+    {
+        if (clearMpn) DatasheetMpn = null;
+        DatasheetManufacturer = null;
+        DsOhmsText = null;
+        DsPowerText = null;
+        DsToleranceText = null;
+        DsTcrText = null;
+        DsComposition = null;
+        DsPackage = null;
+    }
+
+    // Kutulara "0,5" de "0.5" de yazılabilsin.
+    private static double? ParseUserDouble(string? s)
+        => double.TryParse(s?.Trim().Replace(',', '.'),
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : null;
 
     private static string ValueLabelFor(SchematicSuggestion g)
     {

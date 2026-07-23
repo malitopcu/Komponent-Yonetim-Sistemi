@@ -9,6 +9,7 @@ public class AppDbContext : DbContext
     public DbSet<Component> Components => Set<Component>();
     public DbSet<Offer> Offers => Set<Offer>();
     public DbSet<ImportProfile> ImportProfiles => Set<ImportProfile>();
+    public DbSet<MpnProfile> MpnProfiles => Set<MpnProfile>();
 
     public DbSet<BomList> BomLists => Set<BomList>();
     public DbSet<BomItem> BomItems => Set<BomItem>();

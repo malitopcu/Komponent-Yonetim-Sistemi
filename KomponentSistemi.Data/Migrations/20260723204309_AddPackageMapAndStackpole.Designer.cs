@@ -3,6 +3,7 @@ using System;
 using KomponentSistemi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KomponentSistemi.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260723204309_AddPackageMapAndStackpole")]
+    partial class AddPackageMapAndStackpole
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
@@ -418,82 +421,10 @@ namespace KomponentSistemi.Data.Migrations
                             Manufacturer = "Panasonic",
                             Name = "Panasonic ERJ",
                             PackageMapJson = "{}",
-                            PatternRegex = "^ERJ-?[A-Z0-9]{2,4}(?<tol>[DFGJ])(?<value>[0-9R]{3,4})[A-Z]?$",
+                            PatternRegex = "^ERJ-?[A-Z0-9]{2,4}(?<tol>[DFGJ])(?<value>[0-9R]{4})[A-Z]?$",
                             PowerMapJson = "{}",
                             TcrMapJson = "{}",
                             ToleranceMapJson = "{\"D\":0.5,\"F\":1.0,\"G\":2.0,\"J\":5.0}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 11,
-                            Manufacturer = "Vishay",
-                            Name = "Vishay Dale CRCW",
-                            PackageMapJson = "{\"0201\":\"0201\",\"0402\":\"0402\",\"0603\":\"0603\",\"0805\":\"0805\",\"1206\":\"1206\",\"1210\":\"1210\",\"2010\":\"2010\",\"2512\":\"2512\"}",
-                            PatternRegex = "^CRCW(?<size>\\d{4})(?<value>[0-9RKM]{4})(?<tol>[FJDZ])(?<tcr>[KNH])[A-Z0-9]*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{\"K\":100,\"N\":200,\"H\":50}",
-                            ToleranceMapJson = "{\"F\":1.0,\"D\":0.5,\"J\":5.0}",
-                            ValueEncoding = "rkm"
-                        },
-                        new
-                        {
-                            Id = 12,
-                            Manufacturer = "Bourns",
-                            Name = "Bourns CR",
-                            PackageMapJson = "{\"0402\":\"0402\",\"0603\":\"0603\",\"0805\":\"0805\",\"1206\":\"1206\",\"1210\":\"1210\",\"2010\":\"2010\",\"2512\":\"2512\"}",
-                            PatternRegex = "^CR(?<size>\\d{4})-(?<tol>[FGJ])[A-Z]-(?<value>[0-9R]{3,4})E[A-Z]*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"F\":1.0,\"G\":2.0,\"J\":5.0}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 13,
-                            Manufacturer = "ROHM",
-                            Name = "Rohm MCR",
-                            PackageMapJson = "{}",
-                            PatternRegex = "^MCR(?<size>\\d{2,3})[A-Z]{3}(?<tol>[FJD])X?(?<value>[0-9R]{3,4})[A-Z]?$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"F\":1.0,\"J\":5.0,\"D\":0.5}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 14,
-                            Manufacturer = "Walsin",
-                            Name = "Walsin WR",
-                            PackageMapJson = "{\"10\":\"1210\",\"12\":\"1206\",\"08\":\"0805\",\"06\":\"0603\",\"04\":\"0402\"}",
-                            PatternRegex = "^WR(?<size>10|12|08|06|04)[XW](?<value>[0-9R]{3,4})(?<tol>[FJ])[TQGHBDA]L?$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"F\":1.0,\"J\":5.0}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 15,
-                            Manufacturer = "Samsung Electro-Mechanics",
-                            Name = "Samsung RC",
-                            PackageMapJson = "{\"0402\":\"01005\",\"0603\":\"0201\",\"1005\":\"0402\",\"1608\":\"0603\",\"2012\":\"0805\",\"3216\":\"1206\",\"3225\":\"1210\",\"5025\":\"2010\",\"6432\":\"2512\"}",
-                            PatternRegex = "^RC(?<size>\\d{4})(?<tol>[DFGJ])(?<value>[0-9R]{3,4})(?:CS|ES|AS)$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"D\":0.5,\"F\":1.0,\"G\":2.0,\"J\":5.0}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 16,
-                            Manufacturer = "",
-                            Name = "Standart boy-W kodu",
-                            PackageMapJson = "{\"0402\":\"0402\",\"0603\":\"0603\",\"0805\":\"0805\",\"1206\":\"1206\",\"1210\":\"1210\",\"2010\":\"2010\",\"2512\":\"2512\"}",
-                            PatternRegex = "^(?<size>0201|0402|0603|0805|1206|1210|2010|2512)W[0-9A-Z](?<tol>[FGJD])(?<value>[0-9R]{3,4})T[0-9A-Z]*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"F\":1.0,\"G\":2.0,\"J\":5.0,\"D\":0.5}",
                             ValueEncoding = "sig-zeros-R"
                         });
                 });

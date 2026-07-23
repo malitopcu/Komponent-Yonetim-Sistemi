@@ -19,4 +19,7 @@ public static class ServiceFactory
 
     public static DataManagementService CreateDataManagementService()
         => new DataManagementService(new AppDbContext());
+
+    public static DatasheetComponentService CreateDatasheetComponentService()
+        => new DatasheetComponentService(new AppDbContext());
 }

@@ -3,6 +3,7 @@ using System;
 using KomponentSistemi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KomponentSistemi.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260723165728_AddMoreMpnProfiles")]
+    partial class AddMoreMpnProfiles
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
@@ -267,15 +270,7 @@ namespace KomponentSistemi.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Manufacturer")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PackageMapJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -307,9 +302,7 @@ namespace KomponentSistemi.Data.Migrations
                         new
                         {
                             Id = 1,
-                            Manufacturer = "Vishay Sfernice",
                             Name = "Vishay Sfernice RCMS",
-                            PackageMapJson = "{}",
                             PatternRegex = "^RCMS\\d{2}(?<value>[0-9R]{5})(?<tol>[A-Z])(?<tcr>[A-Z])",
                             PowerMapJson = "{}",
                             TcrMapJson = "{\"H\":50,\"E\":25,\"D\":15}",
@@ -319,9 +312,7 @@ namespace KomponentSistemi.Data.Migrations
                         new
                         {
                             Id = 2,
-                            Manufacturer = "Vishay Sfernice",
                             Name = "Vishay Sfernice RLP",
-                            PackageMapJson = "{}",
                             PatternRegex = "^RLP\\d{2}(?<value>[0-9R]{5})(?<tol>[A-Z])",
                             PowerMapJson = "{}",
                             TcrMapJson = "{}",
@@ -331,9 +322,7 @@ namespace KomponentSistemi.Data.Migrations
                         new
                         {
                             Id = 3,
-                            Manufacturer = "Ohmite",
                             Name = "Ohmite 40 Serisi",
-                            PackageMapJson = "{}",
                             PatternRegex = "^4(?<power>[123570])N?(?<tol>[FJ])(?<value>\\d+[RKM]\\d*|R\\d+|\\d+)(?:E)?(?:-T)?$",
                             PowerMapJson = "{\"1\":1.0,\"2\":2.0,\"3\":3.0,\"5\":5.0,\"7\":7.0,\"0\":10.0}",
                             TcrMapJson = "{}",
@@ -343,9 +332,7 @@ namespace KomponentSistemi.Data.Migrations
                         new
                         {
                             Id = 4,
-                            Manufacturer = "Ohmite",
                             Name = "Ohmite HSX",
-                            PackageMapJson = "{}",
                             PatternRegex = "^HSX-2[WZ](?<value>\\d{4})(?<tol>[A-Z])E$",
                             PowerMapJson = "{}",
                             TcrMapJson = "{}",
@@ -355,9 +342,7 @@ namespace KomponentSistemi.Data.Migrations
                         new
                         {
                             Id = 5,
-                            Manufacturer = "Vishay Sfernice",
                             Name = "Vishay Sfernice RCMT",
-                            PackageMapJson = "{}",
                             PatternRegex = "^RCMT(?<power>\\d{2})(?<value>[0-9R]{5})(?<tol>[A-Z])(?<tcr>[A-Z])",
                             PowerMapJson = "{\"01\":0.063,\"02\":0.125,\"05\":0.25,\"08\":0.5,\"10\":1.0,\"20\":2.0,\"40\":4.0}",
                             TcrMapJson = "{\"H\":50,\"E\":25,\"D\":15}",
@@ -367,9 +352,7 @@ namespace KomponentSistemi.Data.Migrations
                         new
                         {
                             Id = 6,
-                            Manufacturer = "Vishay Sfernice",
                             Name = "Vishay Sfernice RCMA",
-                            PackageMapJson = "{}",
                             PatternRegex = "^RCMA(?<power>\\d{2})(?<value>[0-9R]{5})(?<tol>[A-Z])(?<tcr>[A-Z])",
                             PowerMapJson = "{\"02\":0.125,\"05\":0.25,\"08\":0.5,\"10\":0.75,\"20\":1.0,\"40\":2.0}",
                             TcrMapJson = "{\"H\":50,\"E\":25,\"D\":15}",
@@ -379,9 +362,7 @@ namespace KomponentSistemi.Data.Migrations
                         new
                         {
                             Id = 7,
-                            Manufacturer = "Yageo",
                             Name = "Yageo RC",
-                            PackageMapJson = "{\"0075\":\"0075\",\"0100\":\"0100\",\"0201\":\"0201\",\"0402\":\"0402\",\"0603\":\"0603\",\"0805\":\"0805\",\"1206\":\"1206\",\"1210\":\"1210\",\"1218\":\"1218\",\"2010\":\"2010\",\"2512\":\"2512\"}",
                             PatternRegex = "^RC(?<size>\\d{4})(?<tol>[BDFJ])[RKS]-(?:07|10|13|7W|7D|7N|3W)(?<value>\\d+[RKM]\\d*|R\\d+)[A-Z]?$",
                             PowerMapJson = "{}",
                             TcrMapJson = "{}",
@@ -391,9 +372,7 @@ namespace KomponentSistemi.Data.Migrations
                         new
                         {
                             Id = 8,
-                            Manufacturer = "KOA Speer",
                             Name = "KOA RK73H",
-                            PackageMapJson = "{\"1F\":\"01005\",\"1H\":\"0201\",\"1E\":\"0402\",\"1J\":\"0603\",\"2A\":\"0805\",\"2B\":\"1206\",\"2E\":\"1210\",\"2H\":\"2010\",\"W2H\":\"2010\",\"3A\":\"2512\",\"W3A\":\"2512\",\"W3A2\":\"2512\"}",
                             PatternRegex = "^RK73H(?<size>W3A2|W2H|W3A|1[FHEJ]|2[ABEH]|3A)A?[TGL](?:TX|TBL|TCM|TPL|TP|TD|TE)(?<value>[0-9R]{4})(?<tol>[DF])$",
                             PowerMapJson = "{}",
                             TcrMapJson = "{}",
@@ -402,98 +381,12 @@ namespace KomponentSistemi.Data.Migrations
                         },
                         new
                         {
-                            Id = 10,
-                            Manufacturer = "Stackpole Electronics",
-                            Name = "Stackpole SP",
-                            PackageMapJson = "{}",
-                            PatternRegex = "^SP3A(?<tol>[J])T(?<value>[0-9R]{4})$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"J\":5.0}",
-                            ValueEncoding = "rkm"
-                        },
-                        new
-                        {
                             Id = 9,
-                            Manufacturer = "Panasonic",
                             Name = "Panasonic ERJ",
-                            PackageMapJson = "{}",
-                            PatternRegex = "^ERJ-?[A-Z0-9]{2,4}(?<tol>[DFGJ])(?<value>[0-9R]{3,4})[A-Z]?$",
+                            PatternRegex = "^ERJ-?[A-Z0-9]{2,4}(?<tol>[DFGJ])(?<value>[0-9R]{4})[A-Z]?$",
                             PowerMapJson = "{}",
                             TcrMapJson = "{}",
                             ToleranceMapJson = "{\"D\":0.5,\"F\":1.0,\"G\":2.0,\"J\":5.0}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 11,
-                            Manufacturer = "Vishay",
-                            Name = "Vishay Dale CRCW",
-                            PackageMapJson = "{\"0201\":\"0201\",\"0402\":\"0402\",\"0603\":\"0603\",\"0805\":\"0805\",\"1206\":\"1206\",\"1210\":\"1210\",\"2010\":\"2010\",\"2512\":\"2512\"}",
-                            PatternRegex = "^CRCW(?<size>\\d{4})(?<value>[0-9RKM]{4})(?<tol>[FJDZ])(?<tcr>[KNH])[A-Z0-9]*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{\"K\":100,\"N\":200,\"H\":50}",
-                            ToleranceMapJson = "{\"F\":1.0,\"D\":0.5,\"J\":5.0}",
-                            ValueEncoding = "rkm"
-                        },
-                        new
-                        {
-                            Id = 12,
-                            Manufacturer = "Bourns",
-                            Name = "Bourns CR",
-                            PackageMapJson = "{\"0402\":\"0402\",\"0603\":\"0603\",\"0805\":\"0805\",\"1206\":\"1206\",\"1210\":\"1210\",\"2010\":\"2010\",\"2512\":\"2512\"}",
-                            PatternRegex = "^CR(?<size>\\d{4})-(?<tol>[FGJ])[A-Z]-(?<value>[0-9R]{3,4})E[A-Z]*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"F\":1.0,\"G\":2.0,\"J\":5.0}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 13,
-                            Manufacturer = "ROHM",
-                            Name = "Rohm MCR",
-                            PackageMapJson = "{}",
-                            PatternRegex = "^MCR(?<size>\\d{2,3})[A-Z]{3}(?<tol>[FJD])X?(?<value>[0-9R]{3,4})[A-Z]?$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"F\":1.0,\"J\":5.0,\"D\":0.5}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 14,
-                            Manufacturer = "Walsin",
-                            Name = "Walsin WR",
-                            PackageMapJson = "{\"10\":\"1210\",\"12\":\"1206\",\"08\":\"0805\",\"06\":\"0603\",\"04\":\"0402\"}",
-                            PatternRegex = "^WR(?<size>10|12|08|06|04)[XW](?<value>[0-9R]{3,4})(?<tol>[FJ])[TQGHBDA]L?$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"F\":1.0,\"J\":5.0}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 15,
-                            Manufacturer = "Samsung Electro-Mechanics",
-                            Name = "Samsung RC",
-                            PackageMapJson = "{\"0402\":\"01005\",\"0603\":\"0201\",\"1005\":\"0402\",\"1608\":\"0603\",\"2012\":\"0805\",\"3216\":\"1206\",\"3225\":\"1210\",\"5025\":\"2010\",\"6432\":\"2512\"}",
-                            PatternRegex = "^RC(?<size>\\d{4})(?<tol>[DFGJ])(?<value>[0-9R]{3,4})(?:CS|ES|AS)$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"D\":0.5,\"F\":1.0,\"G\":2.0,\"J\":5.0}",
-                            ValueEncoding = "sig-zeros-R"
-                        },
-                        new
-                        {
-                            Id = 16,
-                            Manufacturer = "",
-                            Name = "Standart boy-W kodu",
-                            PackageMapJson = "{\"0402\":\"0402\",\"0603\":\"0603\",\"0805\":\"0805\",\"1206\":\"1206\",\"1210\":\"1210\",\"2010\":\"2010\",\"2512\":\"2512\"}",
-                            PatternRegex = "^(?<size>0201|0402|0603|0805|1206|1210|2010|2512)W[0-9A-Z](?<tol>[FGJD])(?<value>[0-9R]{3,4})T[0-9A-Z]*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{\"F\":1.0,\"G\":2.0,\"J\":5.0,\"D\":0.5}",
                             ValueEncoding = "sig-zeros-R"
                         });
                 });

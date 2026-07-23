@@ -53,11 +53,11 @@ sealed class Program
             return;
         }
 
-        // Datasheet'ten veri: direnç datasheet metninden seri özelliklerini çıkar.
-        // Kullanım:  dotnet run --project KomponentSistemi.UI -- --datasheet <yol>/x.txt
-        if (args.Length >= 2 && args[0] == "--datasheet")
+        // MPN'den değer çözme (DB'deki MpnProfile verisiyle).
+        // Kullanım:  dotnet run --project KomponentSistemi.UI -- --decode <MPN> [<MPN> ...]
+        if (args.Length >= 2 && args[0] == "--decode")
         {
-            RunDatasheetExtract(args[1]);
+            RunMpnDecode(args.Skip(1));
             return;
         }
 
@@ -183,21 +183,28 @@ sealed class Program
         }
     }
 
-    // GEÇİCİ: direnç datasheet metninden seri özelliklerini çıkar (Datasheet Adım 1).
-    // Şimdilik düz metin (.txt) okuyor; PDF okuma (PdfPig) sonraki adımda eklenecek.
-    private static void RunDatasheetExtract(string path)
+    // GEÇİCİ: MPN'leri DB'deki profillerle çözüp basar.
+    private static void RunMpnDecode(IEnumerable<string> mpns)
     {
-        if (!System.IO.File.Exists(path)) { Console.WriteLine("Dosya bulunamadı: " + path); return; }
+        using var db = new KomponentSistemi.Data.AppDbContext();
+        var profiles = db.MpnProfiles.ToList();
+        if (profiles.Count == 0) { Console.WriteLine("DB'de MpnProfile yok (migration çalıştı mı?)"); return; }
 
-        string text = System.IO.File.ReadAllText(path);
-        var s = ResistorDatasheetExtractor.Extract(text);
-
-        Console.WriteLine($"Kompozisyon : {s.Composition ?? "-"}");
-        Console.WriteLine($"Güç (W)     : {(s.PowerOptionsW.Count > 0 ? string.Join(", ", s.PowerOptionsW) : "-")}");
-        Console.WriteLine($"TCR (ppm/°C): {(s.TcrPpmOptions.Count > 0 ? string.Join(", ", s.TcrPpmOptions) : "-")}");
-        Console.WriteLine($"Tolerans (%): {(s.ToleranceOptions.Count > 0 ? string.Join(", ", s.ToleranceOptions) : "-")}");
-        Console.WriteLine($"Sıcaklık    : {s.OperatingTempMin?.ToString() ?? "?"} .. {s.OperatingTempMax?.ToString() ?? "?"} °C");
-        Console.WriteLine($"Montaj      : {s.Mounting ?? "-"}");
+        foreach (var mpn in mpns)
+        {
+            var d = MpnDecoder.TryDecode(mpn, profiles);
+            if (d is null)
+            {
+                var sug = MpnDecoder.SuggestValues(mpn);
+                Console.WriteLine(sug.Count > 0
+                    ? $"{mpn}: profil yok, ÖNERİ: " + string.Join(", ", sug.Select(x => $"{x.Ohms} Ω ({x.Reason})"))
+                    : $"{mpn}: çözülemedi (profil eşleşmedi, öneri de yok)");
+                continue;
+            }
+            Console.WriteLine(
+                $"{mpn}: {d.Ohms} Ω, ±{d.TolerancePercent?.ToString() ?? "?"} %, {d.TcrPpm?.ToString() ?? "?"} ppm/°C, " +
+                $"{d.PowerW?.ToString() ?? "?"} W  [{d.ProfileName}]");
+        }
     }
 
     public static AppBuilder BuildAvaloniaApp()
