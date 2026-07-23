@@ -9,24 +9,53 @@
     </Application.DataTemplates>
 
     <Application.Resources>
-        <!-- Mavi vurgu (Fluent bunları kullanır) -->
-        <Color x:Key="SystemAccentColor">#2F6FEB</Color>
-        <Color x:Key="SystemAccentColorLight1">#4B84EF</Color>
-        <Color x:Key="SystemAccentColorLight2">#6E9DF3</Color>
-        <Color x:Key="SystemAccentColorLight3">#92B6F7</Color>
-        <Color x:Key="SystemAccentColorDark1">#245BD0</Color>
-        <Color x:Key="SystemAccentColorDark2">#1C49A8</Color>
-        <Color x:Key="SystemAccentColorDark3">#143781</Color>
+        <ResourceDictionary>
 
-        <!-- Uygulama renk paleti (açık profesyonel) -->
-        <SolidColorBrush x:Key="AppPageBrush"          Color="#F4F6F8"/>
-        <SolidColorBrush x:Key="AppSurfaceBrush"       Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="AppHeaderBrush"        Color="#F0F2F5"/>
-        <SolidColorBrush x:Key="AppBorderBrush"        Color="#E4E7EC"/>
-        <SolidColorBrush x:Key="AppBorderSoftBrush"    Color="#EEF0F3"/>
-        <SolidColorBrush x:Key="AppTextPrimaryBrush"   Color="#1A1D21"/>
-        <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#6B7280"/>
-        <SolidColorBrush x:Key="AppAccentBrush"        Color="#2F6FEB"/>
+            <!-- Mavi vurgu (Fluent bunları kullanır) -->
+            <Color x:Key="SystemAccentColor">#2F6FEB</Color>
+            <Color x:Key="SystemAccentColorLight1">#4B84EF</Color>
+            <Color x:Key="SystemAccentColorLight2">#6E9DF3</Color>
+            <Color x:Key="SystemAccentColorLight3">#92B6F7</Color>
+            <Color x:Key="SystemAccentColorDark1">#245BD0</Color>
+            <Color x:Key="SystemAccentColorDark2">#1C49A8</Color>
+            <Color x:Key="SystemAccentColorDark3">#143781</Color>
+
+            <!-- Uygulama paleti: aynı anahtarlar, açık ve koyu iki set.
+                 Tema değişince DynamicResource sayesinde anında güncellenir. -->
+            <ResourceDictionary.ThemeDictionaries>
+
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AppPageBrush"          Color="#F4F6F8"/>
+                    <SolidColorBrush x:Key="AppSurfaceBrush"       Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="AppHeaderBrush"        Color="#F0F2F5"/>
+                    <SolidColorBrush x:Key="AppBorderBrush"        Color="#E4E7EC"/>
+                    <SolidColorBrush x:Key="AppBorderSoftBrush"    Color="#EEF0F3"/>
+                    <SolidColorBrush x:Key="AppTextPrimaryBrush"   Color="#1A1D21"/>
+                    <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#6B7280"/>
+                    <SolidColorBrush x:Key="AppAccentBrush"        Color="#2F6FEB"/>
+                    <SolidColorBrush x:Key="AppDropFillBrush"      Color="#F5F8FF"/>
+                    <SolidColorBrush x:Key="AppDropStrokeBrush"    Color="#9DB8E8"/>
+                    <SolidColorBrush x:Key="AppToggleTrackBrush"   Color="#BBD6F5"/>
+                    <SolidColorBrush x:Key="AppRowAltBrush"        Color="#F2F7FD"/>
+                </ResourceDictionary>
+
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="AppPageBrush"          Color="#15171B"/>
+                    <SolidColorBrush x:Key="AppSurfaceBrush"       Color="#1E2126"/>
+                    <SolidColorBrush x:Key="AppHeaderBrush"        Color="#252932"/>
+                    <SolidColorBrush x:Key="AppBorderBrush"        Color="#343945"/>
+                    <SolidColorBrush x:Key="AppBorderSoftBrush"    Color="#2A2E37"/>
+                    <SolidColorBrush x:Key="AppTextPrimaryBrush"   Color="#E8EAED"/>
+                    <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#9AA0A6"/>
+                    <SolidColorBrush x:Key="AppAccentBrush"        Color="#5B8DEF"/>
+                    <SolidColorBrush x:Key="AppDropFillBrush"      Color="#1B222E"/>
+                    <SolidColorBrush x:Key="AppDropStrokeBrush"    Color="#3E5B85"/>
+                    <SolidColorBrush x:Key="AppToggleTrackBrush"   Color="#2B3448"/>
+                    <SolidColorBrush x:Key="AppRowAltBrush"        Color="#232833"/>
+                </ResourceDictionary>
+
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 
     <Application.Styles>
@@ -35,7 +64,7 @@
 
         <!-- Pencere zemini: yumuşak gri; kartlar üstünde beyaz durur -->
         <Style Selector="Window">
-            <Setter Property="Background" Value="{StaticResource AppPageBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource AppPageBrush}"/>
         </Style>
 
         <!-- Kontrollerde yumuşak köşe -->
@@ -52,17 +81,24 @@
 
         <!-- Tablo: beyaz kart görünümü, ince yatay çizgiler -->
         <Style Selector="DataGrid">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="RowBackground" Value="{StaticResource AppSurfaceBrush}"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource AppBorderSoftBrush}"/>
+            <Setter Property="RowBackground" Value="{DynamicResource AppSurfaceBrush}"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource AppBorderSoftBrush}"/>
             <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="CanUserResizeColumns" Value="True"/>
+            <Setter Property="ClipboardCopyMode" Value="ExcludeHeader"/>
         </Style>
+        <!-- Zebra: çift sıradaki satırlar hafif mavi (Avalonia'da nth-child ile) -->
+        <Style Selector="DataGridRow:nth-child(2n)">
+            <Setter Property="Background" Value="{DynamicResource AppRowAltBrush}"/>
+        </Style>
+
         <Style Selector="DataGridColumnHeader">
-            <Setter Property="Background" Value="{StaticResource AppHeaderBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource AppTextSecondaryBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource AppHeaderBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="MinHeight" Value="34"/>

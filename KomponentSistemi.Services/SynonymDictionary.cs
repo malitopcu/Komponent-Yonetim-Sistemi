@@ -1,6 +1,6 @@
 namespace KomponentSistemi.Services;
 
-// Başlık → parametre anahtarı eşlemesi.
+// CSV başlığı → parametre anahtarı.
 public static class SynonymDictionary
 {
     private static readonly Dictionary<string, string> IdentityMap = new()
@@ -67,8 +67,8 @@ public static class SynonymDictionary
         ["frekans"]                 = "frequency",
         ["voltage - supply"]        = "supply_voltage",
         ["frequency stability"]     = "frequency_tolerance",
-        // Osilatörde gerçek boyut burada (footprint için). Sadece "size" tanımı olan tip
-        // (osilatör) saklar; diğer tiplerde IgnoreSet fallback'i sessizce atar.
+        // Footprint için gerçek boyut burada. Sadece "size" tanımı olan tip (osilatör)
+        // saklar, diğerlerinde IgnoreSet sessizce eler.
         ["size / dimension"]        = "size",
 
         // --- LCSC başlıkları ---
@@ -138,18 +138,15 @@ public static class SynonymDictionary
     public static string? ResolveOffer(string header)    => Lookup(OfferMap, header);
     public static string? ResolveParameter(string header) => Lookup(ParameterMap, header);
 
-    // Başlık bilinen bir meta/atlanabilir sütun mu? (rapordaki gürültüyü keser)
     public static bool IsIgnorable(string header)
         => IgnoreSet.Contains(header.Trim().Replace('İ', 'i').ToLowerInvariant());
 
-    // Başlık RoHS sütunu mu?
     public static bool IsRohsHeader(string header)
     {
         var h = header.Trim().Replace('İ', 'i').ToLowerInvariant();
         return h == "rohs" || h == "rohs status" || h == "rohs uyumlu";
     }
 
-    // RoHS hücre değeri → "Uyumlu" / "Uyumsuz" / "" (bilinmiyor).
     public static string NormalizeRohs(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return "";
@@ -162,8 +159,8 @@ public static class SynonymDictionary
         return "";
     }
 
-    // "Tape & Reel", "Bag-packed", "Bulk" gibi PAKETLEME değeri mi? (kasa/paket adı değil)
-    // DigiKey "Package" sütunu paketleme, LCSC "Package" sütunu kasa olduğu için ayırt ederiz.
+    // "Tape & Reel", "Bulk" gibi paketleme değerleri kasa adı değil.
+    // DigiKey'de "Package" paketleme, LCSC'de kasa anlamına geldiği için ayırmak gerekiyor.
     public static bool IsPackagingValue(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return false;

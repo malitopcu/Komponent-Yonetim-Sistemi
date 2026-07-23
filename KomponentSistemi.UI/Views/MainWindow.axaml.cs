@@ -1,7 +1,12 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Styling;
+using KomponentSistemi.Services;
 using System.Linq;
 using System.Threading.Tasks;
 using KomponentSistemi.UI.ViewModels;
@@ -14,36 +19,35 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        // Sürükle-bırak olaylarını pencereye bağla
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
 
-        // Tip seçilince "Değer"/"2. Değer" sütun başlıklarını dinamik güncelle.
-        // (DataGrid sütunları görsel ağaçta olmadığı için binding yerine kod-arkası.)
+        // Değer sütunlarının başlığı seçili tipe göre değişiyor. DataGrid sütunları
+        // görsel ağaçta olmadığı için binding çalışmıyor, kod-arkasından set ediyoruz.
         DataContextChanged += (_, _) =>
         {
-            if (DataContext is MainWindowViewModel vm)
+            if (DataContext is not MainWindowViewModel vm) return;
+
+            void ApplyHeaders()
             {
-                void ApplyHeaders()
+                if (ResultsGrid.Columns.Count > 5)
                 {
-                    if (ResultsGrid.Columns.Count > 5)
-                    {
-                        ResultsGrid.Columns[4].Header = vm.PrimaryHeader;
-                        ResultsGrid.Columns[5].Header = vm.SecondaryHeader;
-                    }
+                    ResultsGrid.Columns[4].Header = vm.PrimaryHeader;
+                    ResultsGrid.Columns[5].Header = vm.SecondaryHeader;
                 }
-                vm.PropertyChanged += (_, e) =>
-                {
-                    if (e.PropertyName == nameof(MainWindowViewModel.PrimaryHeader) ||
-                        e.PropertyName == nameof(MainWindowViewModel.SecondaryHeader))
-                        ApplyHeaders();
-                };
-                ApplyHeaders();
             }
+
+            vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(MainWindowViewModel.PrimaryHeader) ||
+                    e.PropertyName == nameof(MainWindowViewModel.SecondaryHeader))
+                    ApplyHeaders();
+            };
+
+            ApplyHeaders();
         };
     }
 
-    // "CSV Seç" butonu ya da sürükle-bırak alanına tıklama → dosya seçici.
     private async void ImportButton_Click(object? sender, RoutedEventArgs e)
         => await OpenCsvPickerAsync();
 
@@ -67,11 +71,11 @@ public partial class MainWindow : Window
         var path = files[0].TryGetLocalPath();
         if (path == null) return;
 
+        // Sadece seçiyoruz; içe aktarma kullanıcı butona basınca.
         if (DataContext is MainWindowViewModel vm)
-            vm.StagedFilePath = path;   // içe aktarma değil, sadece seç (staged)
+            vm.StagedFilePath = path;
     }
 
-    // KiCad sekmesi "Gözat" → .kicad_sch seç, yolu ViewModel'e yaz.
     private async void KiCadBrowse_Click(object? sender, RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -85,12 +89,114 @@ public partial class MainWindow : Window
         });
 
         if (files.Count == 0) return;
+
         var path = files[0].TryGetLocalPath();
         if (path != null && DataContext is MainWindowViewModel vm)
             vm.SchematicPath = path;
     }
 
-    // "CSV Dışa Aktar" butonu: kaydetme yeri sordur, yolu ViewModel'e teslim et.
+    // Şemadan BOM bölümünün kendi şema seçici (footprint bölümünden bağımsız).
+    private async void SchematicBomBrowse_Click(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Şemadan BOM için KiCad şeması seçin",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("KiCad şema") { Patterns = new[] { "*.kicad_sch" } }
+            }
+        });
+
+        if (files.Count == 0) return;
+        var path = files[0].TryGetLocalPath();
+        if (path != null && DataContext is MainWindowViewModel vm)
+            vm.SchematicBomPath = path;
+    }
+
+    private void QuickAdd_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.DataContext is ComponentSummaryDto row &&
+            DataContext is MainWindowViewModel vm)
+            _ = vm.QuickAddToBomAsync(row);
+    }
+
+    private void QuickRemove_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.DataContext is BomRowDto row &&
+            DataContext is MainWindowViewModel vm)
+            _ = vm.QuickRemoveFromBomAsync(row);
+    }
+
+    // BOM tablosunda adet − / + adım butonları.
+    private void BomQtyMinus_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.DataContext is BomRowDto row && DataContext is MainWindowViewModel vm)
+            _ = vm.ChangeBomQuantityAsync(row, -1);
+    }
+
+    private void BomQtyPlus_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.DataContext is BomRowDto row && DataContext is MainWindowViewModel vm)
+            _ = vm.ChangeBomQuantityAsync(row, +1);
+    }
+
+    // Adet kutusuna elle yazıp Enter'a basınca ya da odaktan çıkınca uygula.
+    private void BomQty_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && sender is TextBox tb)
+            CommitBomQty(tb);
+    }
+
+    private void BomQty_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb)
+            CommitBomQty(tb);
+    }
+
+    private void CommitBomQty(TextBox tb)
+    {
+        if (tb.DataContext is not BomRowDto row || DataContext is not MainWindowViewModel vm) return;
+
+        if (int.TryParse(tb.Text, out int q))
+            _ = vm.SetBomQuantityAsync(row, q);
+        else
+            tb.Text = row.Quantity.ToString();   // geçersiz giriş → eski değere dön
+    }
+
+    private void ColumnsButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+
+        var panel = new StackPanel { Spacing = 4, Margin = new Thickness(8) };
+        foreach (var col in ResultsGrid.Columns)
+        {
+            var header = col.Header?.ToString();
+            if (string.IsNullOrWhiteSpace(header)) continue;
+
+            var c = col;
+            var cb = new CheckBox { Content = header, IsChecked = c.IsVisible };
+            cb.IsCheckedChanged += (_, _) => c.IsVisible = cb.IsChecked == true;
+            panel.Children.Add(cb);
+        }
+
+        new Flyout { Content = panel }.ShowAt(btn);
+    }
+
+    private void ThemeToggle_Click(object? sender, RoutedEventArgs e)
+    {
+        var app = Application.Current;
+        if (app is null) return;
+
+        bool goingDark = app.ActualThemeVariant != ThemeVariant.Dark;
+        app.RequestedThemeVariant = goingDark ? ThemeVariant.Dark : ThemeVariant.Light;
+
+        ThemeKnob.HorizontalAlignment = goingDark ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+        ThemeKnob.Margin = goingDark ? new Thickness(0, 0, 3, 0) : new Thickness(3, 0, 0, 0);
+        DayScene.IsVisible = !goingDark;
+        NightScene.IsVisible = goingDark;
+    }
+
     private async void ExportBomButton_Click(object? sender, RoutedEventArgs e)
     {
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -113,8 +219,6 @@ public partial class MainWindow : Window
             await vm.ExportBomAsync(path);
     }
 
-    // Sürüklenen şey CSV mi? Değilse "bırakılamaz" imleci göster.
-    // (Avalonia 12 API'si: e.DataTransfer + TryGetFiles)
     private void OnDragOver(object? sender, DragEventArgs e)
     {
         var isCsv = e.DataTransfer.Formats.Contains(DataFormat.File)
@@ -137,6 +241,6 @@ public partial class MainWindow : Window
         if (path == null) return;
 
         if (DataContext is MainWindowViewModel vm)
-            vm.StagedFilePath = path;   // içe aktarma değil, sadece seç (staged)
+            vm.StagedFilePath = path;
     }
 }

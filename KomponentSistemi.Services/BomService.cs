@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KomponentSistemi.Services;
 
-// BOM (proje / malzeme listesi) tarafının servisi.
-// Yazma + okuma bir arada; UI Data'yı göremediği için burada yaşar.
+// Proje (BOM) listelerinin okuma ve yazma işleri.
+// UI, Data katmanını doğrudan görmediği için hepsi buradan geçiyor.
 public class BomService
 {
     private readonly AppDbContext _db;
@@ -16,8 +16,6 @@ public class BomService
         _db = db;
     }
 
-    // --- Aktif (varsayılan) proje ---
-    // Gün 10: tek proje ile çalışıyoruz. Yoksa oluştur, varsa ilkini kullan.
     public async Task<int> GetOrCreateDefaultListAsync()
     {
         var existing = await _db.BomLists.OrderBy(b => b.Id).FirstOrDefaultAsync();
@@ -29,7 +27,6 @@ public class BomService
         return list.Id;
     }
 
-    // --- Projeler (çoklu BOM) ---
     public async Task<List<BomListDto>> GetListsAsync()
     {
         return await _db.BomLists
@@ -60,16 +57,14 @@ public class BomService
 
     public async Task DeleteListAsync(int bomListId)
     {
-        // Satırları da yükle → liste silinince onlar da gider.
         var list = await _db.BomLists.Include(b => b.Items).FirstOrDefaultAsync(b => b.Id == bomListId);
         if (list == null) return;
         _db.BomLists.Remove(list);
         await _db.SaveChangesAsync();
     }
 
-    // --- Satır ekleme (upsert) ---
-    // Aynı komponent listede varsa: adet artar, referanslar birleşir. Yoksa yeni satır.
-    // (Bu davranış (BomListId, ComponentId) benzersiz indeksiyle DB güvencesine de bağlı.)
+    // Aynı komponent listede varsa adet artar ve referanslar birleşir.
+    // (BomListId, ComponentId) benzersiz indeksi de bunu zorunlu kılıyor.
     public async Task AddItemAsync(int bomListId, int componentId, int quantity, string? references)
     {
         if (quantity < 1) quantity = 1;
@@ -97,7 +92,6 @@ public class BomService
         await _db.SaveChangesAsync();
     }
 
-    // İki referans listesini birleştir: tekrarları at, sırayı koru.
     // "R1, R2" + "R2, R5" → "R1, R2, R5"
     private static string MergeReferences(string a, string b)
     {
@@ -112,7 +106,6 @@ public class BomService
         return string.Join(", ", seen);
     }
 
-    // --- Satır güncelleme (adet + referans elle düzenleme) ---
     public async Task UpdateItemAsync(int bomItemId, int quantity, string? references)
     {
         var item = await _db.BomItems.FindAsync(bomItemId);
@@ -123,7 +116,6 @@ public class BomService
         await _db.SaveChangesAsync();
     }
 
-    // --- Satır silme ---
     public async Task RemoveItemAsync(int bomItemId)
     {
         var item = await _db.BomItems.FindAsync(bomItemId);
@@ -133,8 +125,7 @@ public class BomService
         await _db.SaveChangesAsync();
     }
 
-    // --- Ekran verisi: satırlar + para birimi başına toplam ---
-    // Sepetteki para birimleri, EN YAYGIN olan başta (varsayılan tercih en çok teklifi olan birim olsun).
+    // En çok teklifi olan para birimi başta gelsin ki varsayılan seçim mantıklı olsun.
     public async Task<List<string>> GetCurrenciesAsync()
     {
         return await _db.Offers
@@ -160,21 +151,25 @@ public class BomService
 
         if (list == null) return detail;
 
-        // Temel para birimi: kullanıcı elle seçtiyse o; yoksa BOM'un kendi çoğunluğu.
         string? baseCurrency = string.IsNullOrWhiteSpace(preferredCurrency)
             ? MajorityCurrency(list)
             : preferredCurrency;
 
         var totals = new Dictionary<string, double>();
 
+        // Kondansatör → F, Direnç → Ω ...
+        var primaryUnits = await _db.ParameterDefinitions
+            .Where(p => p.HotColumn == "primary")
+            .ToDictionaryAsync(p => p.ComponentTypeId, p => p.Unit);
+
         foreach (var item in list.Items.OrderBy(i => i.Id))
         {
-            // Fiyatı + para birimi olan teklifler (dürüstlük: birimsiz fiyat sayılmaz).
+            // Para birimi olmayan fiyat işimize yaramaz, toplamı bozar.
             var priced = item.Component.Offers
                 .Where(o => o.Price.HasValue && !string.IsNullOrWhiteSpace(o.Currency))
                 .ToList();
 
-            // Aktif teklif: kullanıcı elle seçtiyse o; yoksa temel para birimi kuralı.
+            // Kullanıcının elle seçtiği teklif varsa o kazanır.
             Offer? active = null;
             if (item.SelectedOfferId is int selId)
                 active = priced.FirstOrDefault(o => o.Id == selId);
@@ -189,13 +184,14 @@ public class BomService
                 TypeName = item.Component.ComponentType?.Name ?? "",
                 Quantity = item.Quantity,
                 References = item.References,
+                PrimaryValueSi = item.Component.PrimaryValueSi,
+                PrimaryUnit = primaryUnits.GetValueOrDefault(item.Component.ComponentTypeId),
                 HasPrice = active != null,
                 UnitPriceDisplay = active == null ? "—" : Money(active.Price!.Value, active.Currency!),
                 LinePriceDisplay = active == null ? "—" : Money(active.Price!.Value * item.Quantity, active.Currency!),
                 DistributorName = active?.Source ?? ""
             };
 
-            // Satırın tüm tekliflerini çip listesi olarak doldur (aktif olanı işaretle).
             foreach (var o in priced.OrderBy(o => o.Currency).ThenBy(o => o.Price))
                 row.Offers.Add(new OfferOptionDto
                 {
@@ -228,7 +224,8 @@ public class BomService
         return detail;
     }
 
-    // BOM'da en çok komponentin teklif verdiği para birimi (her komponent bir birimi bir kez sayar).
+    // Her komponent bir para birimini bir kez sayar, yoksa 20 teklifli tek parça
+    // bütün listenin para birimini belirlerdi.
     private static string? MajorityCurrency(BomList list)
     {
         return list.Items
@@ -244,7 +241,6 @@ public class BomService
             .FirstOrDefault();
     }
 
-    // Kullanıcının bir satırda tıkladığı teklifi aktif olarak kaydet (kalıcı).
     public async Task SetSelectedOfferAsync(int bomItemId, int offerId)
     {
         var item = await _db.BomItems.FindAsync(bomItemId);
@@ -254,9 +250,7 @@ public class BomService
         await _db.SaveChangesAsync();
     }
 
-    // Bir parçanın teklifleri arasından TEK teklif seç:
-    // 1) Tercih edilen para biriminde teklif varsa → o birimde en ucuz.
-    // 2) Yoksa → parçanın mevcut en ucuz teklifi (kendi para biriminde).
+    // Tercih edilen para biriminde varsa oradaki en ucuz, yoksa genel en ucuz.
     private static Offer? PickOffer(List<Offer> priced, string? preferredCurrency)
     {
         if (priced.Count == 0) return null;
@@ -276,7 +270,6 @@ public class BomService
     private static string Money(double amount, string currency)
         => amount.ToString("0.####", CultureInfo.InvariantCulture) + " " + currency;
 
-    // --- CSV dışa aktarma (Adım 5'te butonla bağlanacak) ---
     public async Task<string> ExportCsvAsync(int bomListId, string? preferredCurrency)
     {
         var detail = await GetDetailAsync(bomListId, preferredCurrency);
@@ -291,7 +284,7 @@ public class BomService
                 Csv(r.References), Csv(r.UnitPriceDisplay), Csv(r.LinePriceDisplay),
                 Csv(r.DistributorName)));
 
-        // Toplam bölümü — para birimi başına ayrı satır (kör toplama yok).
+        // Kur çevirmiyoruz, o yüzden her para birimi kendi satırında.
         sb.AppendLine();
         foreach (var t in detail.Totals)
             sb.AppendLine(string.Join(",", "TOPLAM", "", "", "", "", "", Csv(t.Display), ""));
@@ -302,7 +295,6 @@ public class BomService
         return sb.ToString();
     }
 
-    // CSV hücresini kaçır: virgül/tırnak/yeni satır varsa çift tırnakla sarar.
     private static string Csv(string? value)
     {
         value ??= "";

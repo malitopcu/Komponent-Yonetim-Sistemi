@@ -5,9 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KomponentSistemi.Services;
 
-// Adım 3 doğrulaması: FootprintMapper'ı TÜM veritabanına karşı çalıştırıp
-// tip bazında kapsam raporu üretir (kaç paket eşleşti / eşleşmedi).
-// Salt-okuma; sadece raporlar. UI'a geçici kanca ile bağlanır (Adım 6'da kalkar).
+// FootprintMapper'ı tüm veritabanına karşı çalıştırıp tip bazında kapsam raporu çıkarır.
+// Yeni bir paket ailesi eklerken nereyi kaçırdığımızı görmek için.
 public static class FootprintDiagnostics
 {
     public static string CoverageReport()
@@ -18,6 +17,7 @@ public static class FootprintDiagnostics
             .AsNoTracking()
             .Select(c => new { c.ComponentTypeId, c.ParamsJson, c.PrimaryValueSi, c.SecondaryValueSi })
             .ToList();
+
         var typeNames = db.ComponentTypes.AsNoTracking().ToDictionary(t => t.Id, t => t.Name);
 
         var sb = new StringBuilder();
@@ -31,7 +31,7 @@ public static class FootprintDiagnostics
             foreach (var c in comps.Where(c => c.ComponentTypeId == tid))
             {
                 tot++;
-                var (pkg, _, _) = ReadParams(c.ParamsJson);   // sadece "eşleşmedi" etiketi için paket
+
                 var fp = FootprintMapper.Resolve(tid, c.ParamsJson, c.PrimaryValueSi, c.SecondaryValueSi);
                 if (fp != null)
                 {
@@ -39,14 +39,17 @@ public static class FootprintDiagnostics
                 }
                 else
                 {
-                    string key = string.IsNullOrWhiteSpace(pkg) ? "<yok>" : pkg!;
+                    string key = PackageOf(c.ParamsJson) is { Length: > 0 } pkg ? pkg : "<yok>";
                     miss[key] = miss.GetValueOrDefault(key) + 1;
                 }
             }
 
-            grandOk += ok; grandTot += tot;
+            grandOk += ok;
+            grandTot += tot;
+
             int pct = tot == 0 ? 0 : 100 * ok / tot;
             sb.AppendLine($"\n=== {typeNames[tid]}: {ok}/{tot} eşleşti (%{pct}) ===");
+
             foreach (var kv in miss.OrderByDescending(k => k.Value))
                 sb.AppendLine($"   {kv.Value,4}  eşleşmedi: {kv.Key}");
         }
@@ -54,25 +57,23 @@ public static class FootprintDiagnostics
         int gpct = grandTot == 0 ? 0 : 100 * grandOk / grandTot;
         sb.AppendLine($"\n######## GENEL: {grandOk}/{grandTot} eşleşti (%{gpct}) ########");
         sb.AppendLine("(Osilatör 'boyut yok' ve TVS 'CASE-1' gibi belirsizler dürüst null.)");
+
         return sb.ToString();
     }
 
-    // ParamsJson'dan package + subtype + size çek (yoksa/bozuksa null).
-    private static (string? package, string? subtype, string? size) ReadParams(string? json)
+    // Sadece "eşleşmedi" satırını etiketlemek için.
+    private static string? PackageOf(string? json)
     {
-        if (string.IsNullOrWhiteSpace(json)) return (null, null, null);
+        if (string.IsNullOrWhiteSpace(json)) return null;
+
         try
         {
             using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            string? pkg = root.TryGetProperty("package", out var p) ? p.GetString() : null;
-            string? sub = root.TryGetProperty("subtype", out var s) ? s.GetString() : null;
-            string? size = root.TryGetProperty("size", out var z) ? z.GetString() : null;
-            return (pkg, sub, size);
+            return doc.RootElement.TryGetProperty("package", out var p) ? p.GetString() : null;
         }
         catch
         {
-            return (null, null, null);
+            return null;
         }
     }
 }

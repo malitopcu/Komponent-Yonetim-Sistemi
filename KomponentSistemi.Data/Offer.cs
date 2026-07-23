@@ -13,7 +13,7 @@ public class Offer
     public double? Price { get; set; }
     public string? Currency { get; set; }
 
-    // Fiyatın hangi tarihteki değer olduğu 
+    // Fiyatın hangi tarihteki değer olduğu
     public DateTime? PriceUpdatedAt { get; set; }
 
     // Bu teklif hangi komponente ait?

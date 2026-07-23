@@ -1,5 +1,6 @@
 ﻿using Avalonia;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using KomponentSistemi.Services;
 
@@ -33,6 +34,30 @@ sealed class Program
         if (args.Length >= 2 && args[0] == "--match")
         {
             RunKiCadMatch(args[1]);
+            return;
+        }
+
+        // Şemadan BOM Adım 1: her sembolü tip + değer olarak yorumla (DB'ye yazmaz).
+        // Kullanım:  dotnet run --project KomponentSistemi.UI -- --interpret <yol>/x.kicad_sch
+        if (args.Length >= 2 && args[0] == "--interpret")
+        {
+            RunSchematicInterpret(args[1]);
+            return;
+        }
+
+        // Şemadan BOM Adım 2: her sembol için veritabanından aday komponent öner.
+        // Kullanım:  dotnet run --project KomponentSistemi.UI -- --suggest <yol>/x.kicad_sch
+        if (args.Length >= 2 && args[0] == "--suggest")
+        {
+            RunSchematicSuggest(args[1]);
+            return;
+        }
+
+        // Datasheet'ten veri: direnç datasheet metninden seri özelliklerini çıkar.
+        // Kullanım:  dotnet run --project KomponentSistemi.UI -- --datasheet <yol>/x.txt
+        if (args.Length >= 2 && args[0] == "--datasheet")
+        {
+            RunDatasheetExtract(args[1]);
             return;
         }
 
@@ -93,6 +118,86 @@ sealed class Program
                         : "";
             Console.WriteLine($"{r.Reference,-6} {r.Value,-8} {r.StatusText,-22} {tail}");
         }
+    }
+
+    // GEÇİCİ: şema sembollerini tip + değer olarak yorumla (Şemadan BOM, Adım 1).
+    private static void RunSchematicInterpret(string path)
+    {
+        var rows = SchematicInterpreter.InterpretFile(path, out var errors);
+        foreach (var e in errors) Console.WriteLine("! " + e);
+
+        using var db = new KomponentSistemi.Data.AppDbContext();
+        var typeNames = db.ComponentTypes.ToDictionary(t => t.Id, t => t.Name);
+
+        Console.WriteLine($"{"Ref",-6} {"lib_id",-34} {"Tip",-12} {"Alt tür",-9} Değer");
+        Console.WriteLine(new string('-', 96));
+        foreach (var r in rows.OrderBy(r => r.Reference, StringComparer.Ordinal))
+        {
+            string type = r.ComponentTypeId is int id ? typeNames.GetValueOrDefault(id, "?") : "BİLİNMİYOR";
+            string val = r.ValueKind switch
+            {
+                SchematicValueKind.Numeric => $"sayı: {r.NumericSi}",
+                SchematicValueKind.PartNumber => $"MPN: {r.PartText}",
+                _ => "—"
+            };
+            Console.WriteLine($"{r.Reference,-6} {r.LibId,-34} {type,-12} {(r.Subtype ?? "-"),-9} {val}");
+        }
+    }
+
+    // GEÇİCİ: her sembol için aday komponent önerisi (Şemadan BOM, Adım 2).
+    private static void RunSchematicSuggest(string path)
+    {
+        var rows = new SchematicBomMatcher().Suggest(path, out var errors);
+        foreach (var e in errors) Console.WriteLine("! " + e);
+
+        foreach (var r in rows.OrderBy(r => r.Reference, StringComparer.Ordinal))
+        {
+            string head = r.ValueKind switch
+            {
+                SchematicValueKind.Numeric => $"sayı {r.TargetSi}",
+                SchematicValueKind.PartNumber => $"MPN '{r.PartText}'",
+                _ => "değersiz"
+            };
+            Console.WriteLine($"\n{r.Reference}  (tip {r.ComponentTypeId?.ToString() ?? "?"}" +
+                              $"{(r.Subtype is null ? "" : ", " + r.Subtype)})  {head}  [{r.Status}]");
+
+            if (r.Status == SchematicSuggestStatus.NoValueManual)
+            {
+                Console.WriteLine($"     değer yok — tipte {r.TypePoolCount} aday, elle seçilecek");
+                continue;
+            }
+            if (r.Candidates.Count == 0)
+            {
+                Console.WriteLine("     (eşleşme yok)");
+                continue;
+            }
+
+            Console.WriteLine($"     ({r.Candidates.Count} aday)");
+            foreach (var c in r.Candidates)
+            {
+                string tag = r.ValueKind == SchematicValueKind.Numeric
+                    ? (c.IsExact ? "TAM " : $"%{c.RelError * 100:F1} ")
+                    : "";
+                Console.WriteLine($"     {tag}{c.Display}");
+            }
+        }
+    }
+
+    // GEÇİCİ: direnç datasheet metninden seri özelliklerini çıkar (Datasheet Adım 1).
+    // Şimdilik düz metin (.txt) okuyor; PDF okuma (PdfPig) sonraki adımda eklenecek.
+    private static void RunDatasheetExtract(string path)
+    {
+        if (!System.IO.File.Exists(path)) { Console.WriteLine("Dosya bulunamadı: " + path); return; }
+
+        string text = System.IO.File.ReadAllText(path);
+        var s = ResistorDatasheetExtractor.Extract(text);
+
+        Console.WriteLine($"Kompozisyon : {s.Composition ?? "-"}");
+        Console.WriteLine($"Güç (W)     : {(s.PowerOptionsW.Count > 0 ? string.Join(", ", s.PowerOptionsW) : "-")}");
+        Console.WriteLine($"TCR (ppm/°C): {(s.TcrPpmOptions.Count > 0 ? string.Join(", ", s.TcrPpmOptions) : "-")}");
+        Console.WriteLine($"Tolerans (%): {(s.ToleranceOptions.Count > 0 ? string.Join(", ", s.ToleranceOptions) : "-")}");
+        Console.WriteLine($"Sıcaklık    : {s.OperatingTempMin?.ToString() ?? "?"} .. {s.OperatingTempMax?.ToString() ?? "?"} °C");
+        Console.WriteLine($"Montaj      : {s.Mounting ?? "-"}");
     }
 
     public static AppBuilder BuildAvaloniaApp()

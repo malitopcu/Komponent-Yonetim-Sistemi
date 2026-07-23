@@ -13,7 +13,7 @@ public class CsvImportReader
         public List<Dictionary<string, string>> Rows { get; set; } = new();
         public List<string> Errors { get; set; } = new();
     }
-    
+
     // Ana okuma metodu: dosyayı okur, ham satırları döndürür
     public ReadResult Read(string filePath, string? delimiter = null, string encodingName = "utf-8")
     {
@@ -61,7 +61,7 @@ public class CsvImportReader
 
         return result;
     }
-    
+
     // Dosyanın ilk satırlarına bakıp ayracı tahmin eder
     private static char DetectDelimiter(string filePath, Encoding encoding)
     {

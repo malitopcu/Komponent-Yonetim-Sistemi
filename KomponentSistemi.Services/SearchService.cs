@@ -25,7 +25,8 @@ public class SearchService
         {
             var upper = text.ToUpperInvariant();
             query = query.Where(c => c.Mpn.ToUpper().Contains(upper)
-                                  || c.Manufacturer.ToUpper().Contains(upper));
+                                  || c.Manufacturer.ToUpper().Contains(upper)
+                                  || EF.Functions.Like(SqlJson.Extract(c.ParamsJson, "$.subtype"), "%" + text + "%"));
         }
 
         if (criteria.MinPrimary.HasValue)

@@ -4,25 +4,10 @@ using System.Text.RegularExpressions;
 
 namespace KomponentSistemi.Services;
 
-// ============================================================================
-//  Paket → KiCad footprint eşleyici (Adım 3). SAF/yan-etkisiz, DB'ye dokunmaz.
-// ============================================================================
-//  Girdi: komponentin tipi + ham "package" metni (+ diyotlarda subtype).
-//  Çıktı: KiCad footprint TAM adı ("Kütüphane:Footprint") ya da null.
-//
-//  Felsefe (null felsefesi): paketi TANIYAMAZSAK ya da boyut belli değilse
-//  → null döneriz ("footprint yok" diye raporlanır). ASLA uydurmayız.
-//
-//  Neden token arıyoruz: distribütör paket metinleri dağınık ve çok-kodlu —
-//  "0402 (1005 METRIC)", "DO-204AH, DO-35, AXIAL", "TO-236-3, SC-59, SOT-23-3".
-//  Normalize edip (büyük harf) içinde bildiğimiz kodu ararız.
-//
-//  Footprint adları KiCad standart kütüphanesine göredir (v9/v10 ortak) ve
-//  web'den tam yazımı doğrulandı. KiCad bir adı bulamazsa yalnızca o ad düzeltilir.
-// ============================================================================
+// Komponentin paket bilgisinden KiCad footprint adını üretir.
+// Tanıyamadığı paket için null döner; tahmin yürütmez.
 public static class FootprintMapper
 {
-    // Emperyal (inch) kod → metrik kod. Pasif çip footprint adı ikisini de içerir.
     private static readonly Dictionary<string, string> Imp2Met = new()
     {
         ["01005"] = "0402", ["0201"] = "0603", ["0402"] = "1005", ["0603"] = "1608",
@@ -30,15 +15,12 @@ public static class FootprintMapper
         ["2512"] = "6332",
     };
 
-    // Metrik kod → emperyal (LED paketleri bazen metrik yazılır).
     private static readonly Dictionary<string, string> Met2Imp = new()
     {
         ["1005"] = "0402", ["1608"] = "0603", ["2012"] = "0805",
         ["3216"] = "1206", ["3225"] = "1210",
     };
 
-    // ANA GİRİŞ: tip + ParamsJson + hot sütunlar (primary/secondary) → footprint ya da null.
-    // ParamsJson'ı TEK yerde (burada) ayrıştırırız; yeni tip/param eklemek imzayı değiştirmez.
     public static string? Resolve(int componentTypeId, string? paramsJson, double? primary = null, double? secondary = null)
     {
         var pr = ParseParams(paramsJson);
@@ -48,45 +30,48 @@ public static class FootprintMapper
 
         switch (componentTypeId)
         {
-            case 1: return Passive(package, "C", "Capacitor_SMD") ?? CapTht(pkgUp);   // Kondansatör (SMD→THT)
-            case 2: return Passive(package, "R", "Resistor_SMD") ?? ResTht(pkgUp);    // Direnç (pot/trimpot paketi yok → null)
-            case 3:                                                                   // Diyot
+            case 1: return Passive(package, "C", "Capacitor_SMD") ?? CapTht(pkgUp);   // kondansatör
+            case 2: return Passive(package, "R", "Resistor_SMD") ?? ResTht(pkgUp);    // direnç
+            case 3:                                                                   // diyot
                 if (string.Equals(subtype, "LED", StringComparison.OrdinalIgnoreCase))
                     return Led(package);
                 return MatchTokens(pkgUp, DiodeTable);
-            case 4: return MatchTokens(pkgUp, ToSotTable);                            // Transistör
-            case 6: return MatchTokens(pkgUp, ToSotTable);                            // Regülatör
-            case 5: return Oscillator(Val(pr, "size"));                              // Osilatör: Size/Dimension'dan
-            case 7: return Connector(Val(pr, "pitch"), primary, Val(pr, "mounting")); // Konnektör: pitch + pozisyon(primary)
+            case 4: return MatchTokens(pkgUp, ToSotTable);                            // transistör
+            case 5: return Oscillator(Val(pr, "size"));                               // osilatör
+            case 6: return MatchTokens(pkgUp, ToSotTable);                            // regülatör
+            case 7: return Connector(Val(pr, "pitch"), primary, Val(pr, "mounting")); // konnektör
             default: return null;
         }
     }
 
-    // ParamsJson → sözlük (anahtar duyarsız). Değerler string olarak alınır.
     private static Dictionary<string, string> ParseParams(string? json)
     {
         var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(json)) return d;
+
         try
         {
             using var doc = JsonDocument.Parse(json);
             foreach (var m in doc.RootElement.EnumerateObject())
                 d[m.Name] = m.Value.ValueKind == JsonValueKind.String ? (m.Value.GetString() ?? "") : m.Value.ToString();
         }
-        catch { /* bozuk JSON → boş */ }
+        catch
+        {
+            return d;
+        }
+
         return d;
     }
 
     private static string? Val(Dictionary<string, string> d, string key) => d.TryGetValue(key, out var v) ? v : null;
 
-    // Baştaki emperyal kodu yakalar: "0402 (1005 METRIC)" → "0402", "01005 ..." → "01005".
+    // "0402 (1005 METRIC)" gibi metinlerin başındaki emperyal kodu alır.
     private static string? LeadCode(string? pkg)
     {
         var m = Regex.Match(pkg ?? "", @"^\s*(\d{4,5})");
         return m.Success ? m.Groups[1].Value : null;
     }
 
-    // Pasif çip (direnç/kondansatör): "Resistor_SMD:R_0402_1005Metric" gibi.
     private static string? Passive(string? pkg, string letter, string lib)
     {
         var code = LeadCode(pkg);
@@ -95,49 +80,49 @@ public static class FootprintMapper
             : null;
     }
 
-    // THT pasifler: paket ("AXIAL"/"RADIAL") ölçü/pitch vermez → yaygın VARSAYILAN
-    // land pattern (1/4W eksenel direnç, 5mm disk kondansatör). KiCad'de değişebilir.
+    // "AXIAL" / "RADIAL" ölçü vermediği için yaygın land pattern'e düşüyoruz.
     private static string? ResTht(string p) =>
         p.Contains("AXIAL") ? "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal" : null;
 
     private static string? CapTht(string p) =>
-        (p.Contains("RADIAL") || p.Contains("DISC")) ? "Capacitor_THT:C_Disc_D7.5mm_W5.0mm_P5.00mm" : null;
+        p.Contains("RADIAL") || p.Contains("DISC") ? "Capacitor_THT:C_Disc_D7.5mm_W5.0mm_P5.00mm" : null;
 
-    // LED (Diyot + subtype=LED): "LED_SMD:LED_1206_3216Metric" gibi.
     private static string? Led(string? pkg)
     {
         var code = LeadCode(pkg);
         if (code == null) return null;
+
         if (Imp2Met.TryGetValue(code, out var met) &&
             code is "0201" or "0402" or "0603" or "0805" or "1206" or "1210")
             return $"LED_SMD:LED_{code}_{met}Metric";
+
         if (Met2Imp.TryGetValue(code, out var imp))
             return $"LED_SMD:LED_{imp}_{code}Metric";
-        if (code is "1204" or "1208")                 // KiCad'de yok → en yakın 1206 (3.2mm boy aynı)
+
+        // 1204 ve 1208 KiCad'de yok; boyu aynı olan 1206'ya düşürüyoruz.
+        if (code is "1204" or "1208")
             return "LED_SMD:LED_1206_3216Metric";
+
         return null;
     }
 
-    // Osilatör: paket ("4-SMD, No Lead") boyutsuz olduğu için DigiKey "Size / Dimension"
-    // metninden (ör. '0.126" L x 0.098" W (3.20mm x 2.50mm)') boyutu çıkarıp eşleriz.
-    // KiCad'in o boyutta 4-pin SMD footprint'i yoksa (ör. 2.0x1.6mm) → null (dürüst).
+    // Osilatörde paket alanı boyut vermiyor, ölçü "Size / Dimension" metninden okunuyor.
     private static string? Oscillator(string? size)
     {
         if (string.IsNullOrWhiteSpace(size)) return null;
+
         var m = Regex.Match(size, @"([\d.]+)\s*mm\s*x\s*([\d.]+)\s*mm", RegexOptions.IgnoreCase);
         if (!m.Success) return null;
-        string key = $"{Norm1(m.Groups[1].Value)}x{Norm1(m.Groups[2].Value)}";
-        return OscMap.GetValueOrDefault(key);
+
+        return OscMap.GetValueOrDefault($"{Norm1(m.Groups[1].Value)}x{Norm1(m.Groups[2].Value)}");
     }
 
-    // "3.20" → "3.2", "2.00" → "2.0" (tek ondalık, tutarlı anahtar için).
     private static string Norm1(string num) =>
         double.TryParse(num, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)
             ? d.ToString("0.0", CultureInfo.InvariantCulture)
             : num;
 
-    // Boyut (GxY mm) → KiCad standart osilatör footprint'i. Aynı boyuttaki bir
-    // temsilci footprint seçilir (pad geometrisi boyutla belirlenir).
+    // 2.0x1.6mm için KiCad'de 4 pinli osilatör footprint'i yok, o boyut listede yer almıyor.
     private static readonly Dictionary<string, string> OscMap = new()
     {
         ["3.2x2.5"] = "Oscillator:Oscillator_SMD_SeikoEpson_SG8002CE-4Pin_3.2x2.5mm",
@@ -145,51 +130,48 @@ public static class FootprintMapper
         ["1.6x1.2"] = "Oscillator:Oscillator_SMD_Abracon_ASCO-4Pin_1.6x1.2mm",
         ["5.0x3.2"] = "Oscillator:Oscillator_SMD_SeikoEpson_SG8002LB-4Pin_5.0x3.2mm",
         ["7.0x5.0"] = "Oscillator:Oscillator_SMD_SeikoEpson_SG8002CA-4Pin_7.0x5.0mm",
-        // 2.0x1.6mm: KiCad'de 4-pin osilatör footprint'i YOK → eşleşmez (null).
     };
 
-    // Konnektör (vidalı klemens): footprint'i PITCH + POZİSYON belirler (kasa kodu değil).
-    // Genel inşa: jenerik "TerminalBlock" kütüphanesindeki MaiXu MX126-5.0 (5.00mm); her N poz için.
-    // 5.08mm de 5.00'e yakınsanır. Başka pitch veya SMD/bilinmeyen → dürüst null.
+    // Klemenste footprint'i pitch ve pozisyon sayısı belirler, paket kodu değil.
     private static string? Connector(string? pitch, double? positions, string? mounting)
     {
         if (positions is null) return null;
+
         int n = (int)Math.Round(positions.Value);
         if (n < 2) return null;
 
-        // SMD klemensler vendor'a özel → yalnız delikli (THT). Montaj bilinmiyorsa THT varsayılır.
+        // SMD klemensler üreticiye özel, sadece delikli olanları eşliyoruz.
         if (mounting is not null && !mounting.ToUpperInvariant().Contains("THROUGH")) return null;
 
         double mm = PitchMm(pitch);
-        // KiCad'in jenerik "TerminalBlock" kütüphanesindeki MaiXu MX126-5.0 serisi (5.00mm, N poz).
-        // {n:D2} → 02/03/04… ; 5.08mm de 5.00'e yakınsanır.
         if (mm is >= 4.9 and <= 5.2)
             return $"TerminalBlock:TerminalBlock_MaiXu_MX126-5.0-{n:D2}P_1x{n:D2}_P5.00mm";
-        return null;   // diğer pitch'ler jenerik değil → null
+
+        return null;
     }
 
-    // "0.200\" (5.08mm)" → 5.08 ; bulunamazsa 0.
     private static double PitchMm(string? pitch)
     {
         if (string.IsNullOrWhiteSpace(pitch)) return 0;
+
         var m = Regex.Match(pitch, @"([\d.]+)\s*mm", RegexOptions.IgnoreCase);
         return m.Success && double.TryParse(m.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)
             ? d : 0;
     }
 
-    // Öncelik SIRALI token tablosu: pakette geçen ilk grup kazanır.
-    // fp == null olan giriş: "tanı ama footprint atama" — belirsiz/çok-bacaklı
-    // varyantın (TO-220-5 gibi) daha geniş bir token'a (TO-220) düşmesini engeller.
+    // Tablodaki ilk eşleşen grup kazanır. fp değeri null olan satırlar,
+    // belirsiz varyantın daha genel bir token'a düşmesini engellemek için var.
     private static string? MatchTokens(string p, (string[] tokens, string? fp)[] table)
     {
         foreach (var (tokens, fp) in table)
             foreach (var t in tokens)
                 if (p.Contains(t))
                     return fp;
+
         return null;
     }
 
-    // SIRA ÖNEMLİ: özel varyant önce (SOD-123F, SOD-123'ten önce; SOT-323, SOT-23'ten önce).
+    // Sıra önemli: özel varyantlar genel olanlardan önce gelmeli.
     private static readonly (string[] tokens, string? fp)[] DiodeTable =
     {
         (new[] { "SOD-123F" },                         "Diode_SMD:D_SOD-123F"),
@@ -221,11 +203,11 @@ public static class FootprintMapper
         (new[] { "SOT-323" },                          "Package_TO_SOT_SMD:SOT-323"),
         (new[] { "SOT-553" },                          "Package_TO_SOT_SMD:SOT-553"),
         (new[] { "SOT-223" },                          "Package_TO_SOT_SMD:SOT-223"),
-        (new[] { "TO-220-5" },                         null),   // 5-bacak varyant belirsiz → null
+        (new[] { "TO-220-5" },                         null),
         (new[] { "TO-220" },                           "Package_TO_SOT_THT:TO-220-3_Vertical"),
         (new[] { "TO-3P" },                            "Package_TO_SOT_THT:TO-3P-3_Vertical"),
         (new[] { "TO-247" },                           "Package_TO_SOT_THT:TO-247-3_Vertical"),
-        (new[] { "TO-36", "TO-46", "TO-71", "TO-72" }, null),   // metal kutu nadir → null (TO-3'e karışmasın)
+        (new[] { "TO-36", "TO-46", "TO-71", "TO-72" }, null),
         (new[] { "TO-3" },                             "Package_TO_SOT_THT:TO-3"),
         (new[] { "D2PAK", "TO-263" },                  "Package_TO_SOT_SMD:TO-263-2"),
     };

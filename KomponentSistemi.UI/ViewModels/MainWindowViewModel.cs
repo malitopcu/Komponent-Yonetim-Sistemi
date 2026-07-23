@@ -17,30 +17,56 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly DataManagementService _mgmt;
     private readonly ValueNormalizer _normalizer = new();
 
-    // Aktif (varsayılan) projenin kimliği — LoadAsync'te çözülür.
     private int _bomListId;
 
-    // --- KiCad footprint (Adım 6) ---
     [ObservableProperty] private string? _schematicPath;
     [ObservableProperty] private string _kiCadStatus = "";
     public ObservableCollection<KiCadMatchRow> KiCadRows { get; } = new();
 
+    [ObservableProperty] private string? _schematicBomPath;
+    [ObservableProperty] private string _schematicBomStatus = "";
+    public ObservableCollection<SchematicBomRow> SchematicBomRows { get; } = new();
+
+    [ObservableProperty] private ComponentDetailDto? _compareA;
+    [ObservableProperty] private ComponentDetailDto? _compareB;
+    public ObservableCollection<CompareRow> CompareRows { get; } = new();
+
     public ObservableCollection<ComponentSummaryDto> Components { get; } = new();
     public ObservableCollection<ComponentTypeDto> Types { get; } = new();
-    public ObservableCollection<ComponentTypeDto> FilterTypes { get; } = new();  // "Tümü" + tipler (arama filtresi)
+    public ObservableCollection<ComponentTypeDto> FilterTypes { get; } = new();
 
-    // Tipe göre sıcak sütun başlıkları ("Direnç (Ω)", "Güç (W)")
+    // Ör. "Direnç (Ω)", "Güç (W)"
     private readonly Dictionary<int, (string primary, string secondary)> _typeHeaders = new();
     [ObservableProperty] private string _primaryHeader = "Değer";
     [ObservableProperty] private string _secondaryHeader = "2. Değer";
 
-    // Seçili tip hakkında kısa bilgi (arama ekranı alt paneli)
     [ObservableProperty] private bool _hasTypeInfo;
     [ObservableProperty] private string _typeInfoTitle = "";
     [ObservableProperty] private string _typeInfoBody = "";
 
     [ObservableProperty] private ComponentTypeDto? _selectedType;
     [ObservableProperty] private string? _searchText;
+
+    [ObservableProperty] private string _resultCountText = "";
+
+    // Her tuşta sorgu atmamak için 300 ms bekliyoruz; yeni tuş öncekini iptal eder.
+    private System.Threading.CancellationTokenSource? _searchCts;
+
+    partial void OnSearchTextChanged(string? value)
+    {
+        _searchCts?.Cancel();
+        var cts = new System.Threading.CancellationTokenSource();
+        _searchCts = cts;
+        _ = LiveSearchAsync(cts.Token);
+    }
+
+    private async Task LiveSearchAsync(System.Threading.CancellationToken ct)
+    {
+        try { await Task.Delay(300, ct); }
+        catch (System.OperationCanceledException) { return; }
+        if (ct.IsCancellationRequested) return;
+        await SearchAsync();
+    }
     [ObservableProperty] private string? _minPrimaryText;
     [ObservableProperty] private string? _maxPrimaryText;
     [ObservableProperty] private string? _minSecondaryText;
@@ -56,7 +82,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool HasDetail => Detail != null;
 
-    // --- İçe aktarma ---
     [ObservableProperty] private ComponentTypeDto? _importType;
     [ObservableProperty] private string? _importSource;
     [ObservableProperty] private string? _importCurrency;
@@ -69,7 +94,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool HasImportReport => !string.IsNullOrEmpty(ImportReport);
 
-    // Seçilen ama henüz içe aktarılmamış dosya (staged)
+    // Seçildi ama henüz içe aktarılmadı.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasStagedFile))]
     [NotifyPropertyChangedFor(nameof(StagedFileName))]
@@ -78,16 +103,13 @@ public partial class MainWindowViewModel : ViewModelBase
     public bool HasStagedFile => !string.IsNullOrEmpty(StagedFilePath);
     public string StagedFileName => string.IsNullOrEmpty(StagedFilePath) ? "" : System.IO.Path.GetFileName(StagedFilePath);
 
-    // --- BOM (proje) ---
     public ObservableCollection<BomRowDto> BomRows { get; } = new();
 
-    // Projeler (çoklu BOM)
     public ObservableCollection<BomListDto> BomLists { get; } = new();
     [ObservableProperty] private BomListDto? _selectedBomList;
     [ObservableProperty] private string? _bomNameInput;      // seçili projenin adı (yeniden adlandırma)
     [ObservableProperty] private string? _newProjectName;    // yeni proje oluşturma kutusu
 
-    // --- Yönetim (silme + içe aktarma geri alma) ---
     public ObservableCollection<ImportBatchDto> Batches { get; } = new();
     [ObservableProperty] private ImportBatchDto? _selectedBatch;
 
@@ -98,7 +120,6 @@ public partial class MainWindowViewModel : ViewModelBase
     public bool HasManagedComponent => SelectedManagedComponent != null;
     [ObservableProperty] private string? _manageSearchText;
 
-    // Silmek için işaretli komponent sayısı + onay penceresi durumu
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedManageCountText))]
     private int _selectedManageCount;
@@ -108,6 +129,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private bool _isConfirmingDelete;
     [ObservableProperty] private string _deleteConfirmMessage = "";
 
+    [ObservableProperty] private bool _isConfirmingProjectDelete;
+    [ObservableProperty] private string _projectDeleteMessage = "";
+
     public ObservableCollection<ManagedOfferDto> ManagedOffers { get; } = new();
     [ObservableProperty] private ManagedOfferDto? _selectedManagedOffer;
 
@@ -115,20 +139,17 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string _bomTotalsDisplay = "—";
     [ObservableProperty] private string _bomPricelessNote = "";
 
-    // BOM tablosunda seçili satır (çıkarma için)
     [ObservableProperty] private BomRowDto? _selectedBomRow;
 
     // "Otomatik": temel para birimini BOM'un kendi çoğunluğundan bul.
     private const string AutoCurrency = "Otomatik (çoğunluk)";
 
-    // Fiyat para birimi tercihi (Otomatik + gerçek para birimleri)
     public ObservableCollection<string> Currencies { get; } = new();
     [ObservableProperty] private string? _preferredCurrency;
 
     // İlk yükleme sırasında tercih atanınca gereksiz/çakışan yenileme olmasın diye.
     private bool _bomReady;
 
-    // "Projeye ekle" için adet + referans girişleri
     [ObservableProperty] private int _addQuantity = 1;
     [ObservableProperty] private string? _addReferences;
 
@@ -146,7 +167,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _ = LoadDetailAsync(value);
     }
 
-    // Başlıkları verilen tipe göre güncelle — seçimde DEĞİL, arama/temizle sonrası çağrılır.
+    // Seçim anında değil arama sonrası çağrılıyor ki başlık sonuçlarla birlikte değişsin.
     private void UpdateHeaders(int? typeId)
     {
         if (typeId is int id && _typeHeaders.TryGetValue(id, out var h))
@@ -161,7 +182,6 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    // Tipe göre kısa bilgi — seçimde DEĞİL, arama/temizle sonrası çağrılır.
     private void UpdateTypeInfo(int? typeId)
     {
         var info = typeId is int id ? TypeInfoContent.Get(id) : null;
@@ -180,6 +200,24 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task LoadDetailAsync(ComponentSummaryDto? row)
     {
         Detail = row == null ? null : await _query.GetDetailAsync(row.Id);
+    }
+
+    // Detay panelini kapat. Seçimi de bırakıyoruz ki aynı satıra tekrar tıklayınca yeniden açılsın.
+    [RelayCommand]
+    private void CloseDetail()
+    {
+        Detail = null;
+        SelectedRow = null;
+        SelectedBomRow = null;
+    }
+
+    // Arama sonuçlarıyla aynı detay panelini besliyor.
+    partial void OnSelectedBomRowChanged(BomRowDto? value)
+        => _ = LoadDetailByIdAsync(value?.ComponentId);
+
+    private async Task LoadDetailByIdAsync(int? componentId)
+    {
+        Detail = componentId is null ? null : await _query.GetDetailAsync(componentId.Value);
     }
 
     [RelayCommand]
@@ -207,27 +245,143 @@ public partial class MainWindowViewModel : ViewModelBase
             : $"{res.Written} footprint yazıldı ✓  Yedek: {System.IO.Path.GetFileName(res.BackupPath)}";
     }
 
+    // Şemadan BOM: sembolleri yorumla, her biri için aday komponent öner.
+    [RelayCommand]
+    private void SuggestSchematicBom()
+    {
+        SchematicBomRows.Clear();
+        if (string.IsNullOrWhiteSpace(SchematicBomPath)) { SchematicBomStatus = "Önce bir .kicad_sch dosyası seç."; return; }
+
+        var suggestions = new SchematicBomMatcher().Suggest(SchematicBomPath, out var errors);
+
+        foreach (var g in suggestions)
+        {
+            bool auto = g.Status is SchematicSuggestStatus.ExactValue
+                     or SchematicSuggestStatus.NearValue
+                     or SchematicSuggestStatus.MpnMatch;
+
+            var row = new SchematicBomRow
+            {
+                Reference = g.Reference,
+                TypeName = g.ComponentTypeId is null ? "?" : g.TypeName,
+                ValueLabel = ValueLabelFor(g),
+                StatusLabel = StatusLabelFor(g.Status),
+                Candidates = g.Candidates
+            };
+            row.SelectedCandidate = auto ? g.Candidates.FirstOrDefault() : null;
+            row.Include = auto;
+            SchematicBomRows.Add(row);
+        }
+
+        int ready = SchematicBomRows.Count(r => r.Include);
+        SchematicBomStatus = errors.Count > 0
+            ? string.Join(" | ", errors)
+            : $"{SchematicBomRows.Count} sembol yorumlandı, {ready} tanesi hazır. Adayları gözden geçir, 'Seçilenleri BOM'a Ekle' de.";
+    }
+
+    // İşaretli satırları seçili adaylarıyla aktif projeye ekler.
+    [RelayCommand]
+    private async Task AddSchematicBomToProjectAsync()
+    {
+        var picked = SchematicBomRows.Where(r => r.Include && r.SelectedCandidate != null).ToList();
+        if (picked.Count == 0) { SchematicBomStatus = "Eklenecek işaretli satır yok."; return; }
+
+        foreach (var r in picked)
+            await _bom.AddItemAsync(_bomListId, r.SelectedCandidate!.ComponentId, 1, r.Reference);
+
+        await RefreshBomListsAsync();
+        SelectBomListById(_bomListId);
+        await RefreshBomAsync();
+
+        int skipped = SchematicBomRows.Count - picked.Count;
+        SchematicBomStatus = $"{picked.Count} komponent projeye eklendi" + (skipped > 0 ? $", {skipped} atlandı." : ".");
+    }
+
+    private static string ValueLabelFor(SchematicSuggestion g)
+    {
+        if (g.ValueKind == SchematicValueKind.Numeric) return g.RawValue;
+        if (g.ValueKind == SchematicValueKind.PartNumber) return "MPN: " + g.PartText;
+        if (g.ExpectedPositions is int p) return $"{p} giriş";
+        return "(değersiz)";
+    }
+
+    private static string StatusLabelFor(SchematicSuggestStatus st) => st switch
+    {
+        SchematicSuggestStatus.ExactValue => "tam değer",
+        SchematicSuggestStatus.NearValue => "yakın değer",
+        SchematicSuggestStatus.MpnMatch => "MPN eşleşti",
+        SchematicSuggestStatus.NoValueManual => "değer yok — elle seç",
+        SchematicSuggestStatus.NoMatch => "eşleşme yok",
+        SchematicSuggestStatus.UnknownType => "tip bilinmiyor",
+        _ => ""
+    };
+
+    // Aynı anda en fazla iki komponent karşılaştırılıyor.
+    [RelayCommand]
+    private async Task AddToCompareAsync()
+    {
+        if (SelectedRow == null) { Status = "Önce listeden bir komponent seç."; return; }
+
+        var detail = await _query.GetDetailAsync(SelectedRow.Id);
+        if (detail == null) return;
+
+        if (CompareA == null)
+        { CompareA = detail; Status = $"Karşılaştırmaya eklendi (A): {detail.Mpn}"; }
+        else if (CompareB == null)
+        { CompareB = detail; Status = $"Karşılaştırmaya eklendi (B): {detail.Mpn}"; }
+        else
+        { CompareA = CompareB; CompareB = detail; Status = $"İki slot doluydu, en eski çıkarıldı. Eklendi: {detail.Mpn}"; }
+
+        BuildCompareRows();
+    }
+
+    [RelayCommand]
+    private void ClearCompare()
+    {
+        CompareA = null;
+        CompareB = null;
+        CompareRows.Clear();
+        Status = "Karşılaştırma temizlendi.";
+    }
+
+    // Parametre isimlerini birleştirip satır satır karşılaştırır.
+    private void BuildCompareRows()
+    {
+        CompareRows.Clear();
+
+        var names = new List<string>();
+        if (CompareA != null)
+            foreach (var p in CompareA.Parameters) if (!names.Contains(p.Name)) names.Add(p.Name);
+        if (CompareB != null)
+            foreach (var p in CompareB.Parameters) if (!names.Contains(p.Name)) names.Add(p.Name);
+
+        foreach (var n in names)
+            CompareRows.Add(new CompareRow
+            {
+                Name = n,
+                ValueA = CompareA?.Parameters.FirstOrDefault(p => p.Name == n)?.Value ?? "",
+                ValueB = CompareB?.Parameters.FirstOrDefault(p => p.Name == n)?.Value ?? ""
+            });
+    }
+
     private async Task LoadAsync()
     {
         var types = await _query.GetTypesAsync();
         foreach (var t in types)
             Types.Add(t);
 
-        // Arama filtresi: başa "Tümü" (Id=0), sonra tipler.
         FilterTypes.Add(new ComponentTypeDto { Id = 0, Name = "Tümü" });
         foreach (var t in types)
             FilterTypes.Add(t);
 
-        // Tipe göre sıcak sütun başlıklarını hazırla.
         foreach (var h in await _query.GetTypeHeadersAsync())
             _typeHeaders[h.TypeId] = (h.PrimaryHeader, h.SecondaryHeader);
 
-        SelectedType = FilterTypes[0];   // varsayılan: Tümü
+        SelectedType = FilterTypes[0];
 
         FillComponents(await _query.GetAllAsync());
         Status = $"{Components.Count} komponent yüklendi.";
 
-        // Projeleri + para birimlerini yükle, aktif projeyi seç, BOM tablosunu doldur.
         _bomListId = await _bom.GetOrCreateDefaultListAsync();
 
         Currencies.Add(AutoCurrency);
@@ -261,7 +415,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         FillComponents(await _search.SearchAsync(criteria));
         UpdateHeaders(typeId);   // başlıklar sonuçlarla birlikte (Ara'ya basınca) değişsin
-        UpdateTypeInfo(typeId);  // tip bilgisi de arama sonrası çıksın
+        UpdateTypeInfo(typeId);
         Status = $"{Components.Count} sonuç bulundu.";
     }
 
@@ -281,27 +435,24 @@ public partial class MainWindowViewModel : ViewModelBase
         Status = $"{Components.Count} komponent yüklendi.";
     }
 
-    // "İçe Aktar" butonu: seçili (staged) dosyayı gerçekten içe aktar.
     [RelayCommand]
     private async Task ImportStagedAsync()
     {
         if (string.IsNullOrEmpty(StagedFilePath)) return;
         await ImportFileAsync(StagedFilePath);
-        StagedFilePath = null;   // aktarıldı, seçimi temizle
+        StagedFilePath = null;
     }
 
-    // "Vazgeç": seçili dosyayı içe aktarmadan bırak.
     [RelayCommand]
     private void ClearStaged() => StagedFilePath = null;
 
-    // Asıl içe aktarma işi (ImportStagedAsync çağırır).
     public async Task ImportFileAsync(string path)
     {
         try
         {
             var import = ServiceFactory.CreateImportService();
 
-            // Tip seçilmemişse: başlıklara bakıp öner (otonomi!)
+            // Tip seçilmemişse başlıklardan tahmin ediyoruz.
             if (ImportType == null)
             {
                 var suggested = await import.SuggestTypeAsync(path);
@@ -310,7 +461,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     Status = "Tip önerilemedi — lütfen içe aktarma tipini elle seçin.";
                     return;
                 }
-                // Öneriyi ComboBox'ta da göster (Types içindeki aynı Id'li nesneyi seç)
+                // ComboBox referans eşitliğine baktığı için listedeki aynı Id'li nesneyi seçiyoruz.
                 ImportType = Types.FirstOrDefault(t => t.Id == suggested.Id);
                 Status = $"Başlıklara göre tip önerildi: {suggested.Name}";
             }
@@ -328,7 +479,7 @@ public partial class MainWindowViewModel : ViewModelBase
             var result = await import.ImportAsync(path, ImportType!.Id, source, currency, fixedParams, ImportNote);
 
             FillComponents(await _query.GetAllAsync());
-            await RefreshManagementAsync();   // Yönetim sekmesi anında güncellensin
+            await RefreshManagementAsync();
             await RefreshBomAsync();          // teklif/fiyat değişince BOM tablosu da anında tazelensin
             Status = $"İçe aktarma bitti: {result.Added} eklendi, {result.Updated} güncellendi, {result.Errors.Count} hata.";
 
@@ -350,9 +501,45 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    // --- BOM komutları ---
+    // Tablodaki "+" düğmesi: 1 adet, referanssız.
+    public async Task QuickAddToBomAsync(ComponentSummaryDto row)
+    {
+        await _bom.AddItemAsync(_bomListId, row.Id, 1, null);
+        await RefreshBomListsAsync();
+        SelectBomListById(_bomListId);
+        await RefreshBomAsync();
+        Status = $"Sepete eklendi: {row.Mpn}";
+    }
 
-    // Seçili komponenti aktif projeye ekle (adet + referans ile).
+    public async Task QuickRemoveFromBomAsync(BomRowDto row)
+    {
+        await _bom.RemoveItemAsync(row.BomItemId);
+        await RefreshBomListsAsync();
+        SelectBomListById(_bomListId);
+        await RefreshBomAsync();
+        Status = $"Sepetten çıkarıldı: {row.Mpn}";
+    }
+
+    // BOM satırında adedi ± ile değiştir (en az 1).
+    public async Task ChangeBomQuantityAsync(BomRowDto row, int delta)
+        => await ApplyBomQuantityAsync(row, row.Quantity + delta);
+
+    // BOM satırına elle yazılan adedi uygula.
+    public async Task SetBomQuantityAsync(BomRowDto row, int quantity)
+    {
+        if (quantity < 1) quantity = 1;
+        if (quantity == row.Quantity) return;   // değişmediyse gereksiz yazma yok
+        await ApplyBomQuantityAsync(row, quantity);
+    }
+
+    private async Task ApplyBomQuantityAsync(BomRowDto row, int quantity)
+    {
+        if (quantity < 1) quantity = 1;
+        await _bom.UpdateItemAsync(row.BomItemId, quantity, row.References);
+        await RefreshBomAsync();
+        Status = $"Adet güncellendi: {row.Mpn} ×{quantity}";
+    }
+
     [RelayCommand]
     private async Task AddToBomAsync()
     {
@@ -363,7 +550,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         await _bom.AddItemAsync(_bomListId, SelectedRow.Id, AddQuantity, AddReferences);
-        await RefreshBomListsAsync();      // proje sayısı (ör. 6→7) anında güncellensin
+        await RefreshBomListsAsync();
         SelectBomListById(_bomListId);     // aktif projeyi yeni DTO ile yeniden seç → BOM tablosu da tazelenir
         await RefreshBomAsync();
 
@@ -372,7 +559,6 @@ public partial class MainWindowViewModel : ViewModelBase
         AddQuantity = 1;
     }
 
-    // Bir satırı projeden çıkar (butondan CommandParameter ile gelir).
     [RelayCommand]
     private async Task RemoveFromBomAsync(BomRowDto? row)
     {
@@ -385,7 +571,6 @@ public partial class MainWindowViewModel : ViewModelBase
         Status = $"Projeden çıkarıldı: {row.Mpn}";
     }
 
-    // BOM tablosunu ve toplamları tazele.
     private async Task RefreshBomAsync()
     {
         var detail = await _bom.GetDetailAsync(_bomListId, EffectivePreferred());
@@ -399,7 +584,6 @@ public partial class MainWindowViewModel : ViewModelBase
         BomPricelessNote = detail.PricelessNote;
     }
 
-    // Kullanıcı fiyat para birimini değiştirince toplamları yeniden hesapla.
     partial void OnPreferredCurrencyChanged(string? value)
     {
         if (_bomReady) _ = RefreshBomAsync();
@@ -409,7 +593,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private string? EffectivePreferred()
         => PreferredCurrency == AutoCurrency ? null : PreferredCurrency;
 
-    // Kullanıcı bir satırda başka bir teklife (fiyata) tıklayınca onu aktif yap.
     [RelayCommand]
     private async Task SetRowOfferAsync(OfferOptionDto? opt)
     {
@@ -419,9 +602,6 @@ public partial class MainWindowViewModel : ViewModelBase
         await RefreshBomAsync();
     }
 
-    // --- Çoklu proje ---
-
-    // Proje seçilince: aktif projeyi değiştir, adı kutuya yaz, tabloyu tazele.
     partial void OnSelectedBomListChanged(BomListDto? value)
     {
         if (value == null) return;
@@ -463,9 +643,24 @@ public partial class MainWindowViewModel : ViewModelBase
         Status = "Proje adı güncellendi.";
     }
 
+    // Sil butonu artık doğrudan silmiyor, önce onay penceresi açıyor.
     [RelayCommand]
-    private async Task DeleteBomAsync()
+    private void DeleteBom()
     {
+        if (SelectedBomList == null) return;
+        if (BomLists.Count <= 1) { Status = "Son proje silinemez."; return; }
+
+        ProjectDeleteMessage = $"'{SelectedBomList.Name}' projesi ve içindeki tüm satırlar silinecek. Emin misiniz? Bu işlem geri alınamaz.";
+        IsConfirmingProjectDelete = true;
+    }
+
+    [RelayCommand]
+    private void CancelProjectDelete() => IsConfirmingProjectDelete = false;
+
+    [RelayCommand]
+    private async Task ConfirmProjectDeleteAsync()
+    {
+        IsConfirmingProjectDelete = false;
         if (SelectedBomList == null) return;
         if (BomLists.Count <= 1) { Status = "Son proje silinemez."; return; }
 
@@ -475,9 +670,6 @@ public partial class MainWindowViewModel : ViewModelBase
         Status = "Proje silindi.";
     }
 
-    // --- Yönetim komutları ---
-
-    // Seçili komponent değişince tekliflerini yükle.
     partial void OnSelectedManagedComponentChanged(ManagedComponentRow? value)
     {
         _ = LoadManagedOffersAsync(value?.Id);
@@ -501,7 +693,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var comps = string.IsNullOrWhiteSpace(ManageSearchText)
             ? await _query.GetAllAsync()
             : await _search.SearchAsync(new SearchCriteria { Text = ManageSearchText });
-        foreach (var c in comps)
+        foreach (var c in comps.OrderByDescending(c => c.Id))   // en son eklenen en üstte
         {
             var row = new ManagedComponentRow
             {
@@ -536,12 +728,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
         await _mgmt.UndoBatchAsync(SelectedBatch.Id);
         await RefreshManagementAsync();
-        FillComponents(await _query.GetAllAsync());   // Arama listesini tazele
+        FillComponents(await _query.GetAllAsync());
         await RefreshBomAsync();                       // BOM etkilenmiş olabilir
         Status = "İçe aktarma geri alındı.";
     }
 
-    // "Seçili komponentleri sil" → önce onay penceresi göster.
     [RelayCommand]
     private void RequestDeleteComponents()
     {
@@ -554,7 +745,6 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void CancelDelete() => IsConfirmingDelete = false;
 
-    // Onaylanınca: işaretli tüm komponentleri sil.
     [RelayCommand]
     private async Task ConfirmDeleteAsync()
     {
@@ -578,13 +768,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
         int? compId = SelectedManagedComponent?.Id;
         await _mgmt.DeleteOfferAsync(SelectedManagedOffer.OfferId);
-        await LoadManagedOffersAsync(compId);   // teklif panelini tazele (komponent seçili kalır)
+        await LoadManagedOffersAsync(compId);
         FillComponents(await _query.GetAllAsync());
         await RefreshBomAsync();
         Status = "Teklif silindi.";
     }
 
-    // Kaydetme diyaloğundan gelen yola BOM'u CSV olarak yazar (code-behind çağırır).
     public async Task ExportBomAsync(string path)
     {
         try
@@ -610,5 +799,6 @@ public partial class MainWindowViewModel : ViewModelBase
             c.RowNo = no++;
             Components.Add(c);
         }
+        ResultCountText = $"{Components.Count} sonuç";
     }
 }

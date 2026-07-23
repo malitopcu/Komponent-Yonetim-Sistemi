@@ -8,7 +8,7 @@ public class ParameterDefinition
     public string? Unit { get; set; }
     public string DataType { get; set; } = "";
     public bool IsSearchable { get; set; }
-    
+
     // Bu parametre hangi sıcak sütuna yazılır? "primary", "secondary" ya da null (JSON'a gider)
     public string? HotColumn { get; set; }
 
