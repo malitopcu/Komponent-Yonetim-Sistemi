@@ -3,6 +3,7 @@ using System;
 using KomponentSistemi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KomponentSistemi.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260724055132_AddCapacitorProfiles")]
+    partial class AddCapacitorProfiles
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
@@ -583,81 +586,6 @@ namespace KomponentSistemi.Data.Migrations
                             TcrMapJson = "{}",
                             ToleranceMapJson = "{\"F\":1.0,\"G\":2.0,\"J\":5.0,\"K\":10.0,\"M\":20.0}",
                             ValueEncoding = "sig-zeros-R",
-                            VoltageMapJson = "{}"
-                        },
-                        new
-                        {
-                            Id = 19,
-                            ComponentTypeId = 6,
-                            DielectricMapJson = "{}",
-                            Manufacturer = "",
-                            Name = "Regülatör 78xx",
-                            PackageMapJson = "{}",
-                            PatternRegex = "^(?:LM|L|MC|UA|KA|NJM|TS|ST|HT|AZ)?78(?<value>05|06|08|09|10|12|15|18|24)[A-Z0-9/\\-]*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{}",
-                            ValueEncoding = "literal",
-                            VoltageMapJson = "{}"
-                        },
-                        new
-                        {
-                            Id = 20,
-                            ComponentTypeId = 6,
-                            DielectricMapJson = "{}",
-                            Manufacturer = "",
-                            Name = "Regülatör AMS1117/LM1117",
-                            PackageMapJson = "{}",
-                            PatternRegex = "^(?:AMS|LM|LD)1117[A-Z]*-(?<value>\\d(?:\\.\\d+)?)[A-Z0-9/]*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{}",
-                            ValueEncoding = "literal",
-                            VoltageMapJson = "{}"
-                        },
-                        new
-                        {
-                            Id = 21,
-                            ComponentTypeId = 5,
-                            DielectricMapJson = "{}",
-                            Manufacturer = "",
-                            Name = "Osilatör (literal frekans)",
-                            PackageMapJson = "{}",
-                            PatternRegex = "^.*?(?<value>\\d+(?:\\.\\d+)?[MK]HZ).*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{}",
-                            ValueEncoding = "literal",
-                            VoltageMapJson = "{}"
-                        },
-                        new
-                        {
-                            Id = 22,
-                            ComponentTypeId = 7,
-                            DielectricMapJson = "{}",
-                            Manufacturer = "JST",
-                            Name = "JST konnektör (housing)",
-                            PackageMapJson = "{}",
-                            PatternRegex = "^(?:XHP|PHR|ZHR|EHR|SMR)-(?<value>\\d+)[A-Z0-9\\-]*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{}",
-                            ValueEncoding = "literal",
-                            VoltageMapJson = "{}"
-                        },
-                        new
-                        {
-                            Id = 23,
-                            ComponentTypeId = 7,
-                            DielectricMapJson = "{}",
-                            Manufacturer = "JST",
-                            Name = "JST konnektör (header)",
-                            PackageMapJson = "{}",
-                            PatternRegex = "^[BS](?<value>\\d+)B-(?:XH|PH|ZH|EH)[A-Z0-9\\-]*$",
-                            PowerMapJson = "{}",
-                            TcrMapJson = "{}",
-                            ToleranceMapJson = "{}",
-                            ValueEncoding = "literal",
                             VoltageMapJson = "{}"
                         });
                 });

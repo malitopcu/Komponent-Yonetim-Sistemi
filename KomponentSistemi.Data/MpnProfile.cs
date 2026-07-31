@@ -7,6 +7,10 @@ public class MpnProfile
 {
     public int Id { get; set; }
 
+    // Hangi komponent tipine ait: 1=Kondansatör, 2=Direnç. Çözülen "value"nun
+    // anlamını (Farad mı Ohm mu) ve hangi alanların dolacağını belirler.
+    public int ComponentTypeId { get; set; } = 2;
+
     public string Name { get; set; } = "";
 
     // Profil eşleşince arayüzde üretici alanını doldurmak için; DB'deki
@@ -34,4 +38,12 @@ public class MpnProfile
 
     // {"1J":"0603"} — size grubu → paket adı (çip dirençlerde boy kodu paketi söyler).
     public string PackageMapJson { get; set; } = "{}";
+
+    // Kondansatör: dielektrik kodu → ad ("R7":"X7R"). Boşsa "diel" grubu
+    // olduğu gibi kullanılır (TDK gibi açık "X7R" yazan üreticiler için).
+    public string DielectricMapJson { get; set; } = "{}";
+
+    // Kondansatör: gerilim kodu → V. Boşsa motorun EIA tablosu kullanılır
+    // (0J=6.3, 1H=50...); farklı kodlu üreticiler için buradan geçilebilir.
+    public string VoltageMapJson { get; set; } = "{}";
 }

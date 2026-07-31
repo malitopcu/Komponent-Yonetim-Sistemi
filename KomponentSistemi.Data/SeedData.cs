@@ -407,6 +407,84 @@ public static class SeedData
                 ValueEncoding = "sig-zeros-R",
                 ToleranceMapJson = """{"F":1.0,"G":2.0,"J":5.0,"D":0.5}""",
                 PackageMapJson = """{"0402":"0402","0603":"0603","0805":"0805","1206":"1206","1210":"1210","2010":"2010","2512":"2512"}"""
+            },
+            // === KONDANSATÖR (MLCC) profilleri — Python'da 10/10 doğrulandı ===
+            // Kapasite dirençteki sig-zeros şemasıyla (pF), gerilim EIA kodu (motora
+            // gömülü), dielektrik TDK'da açık yazılı / Murata'da kodlu.
+            new MpnProfile
+            {
+                Id = 17,
+                ComponentTypeId = 1,
+                Name = "TDK C",
+                Manufacturer = "TDK",
+                PatternRegex = @"^C(?<size>\d{4})(?<diel>C0G|X7R|X5R|X6S|X7S|NP0|Y5V|X8R)(?<volt>[0-9][A-Z])(?<value>[0-9R]{3})(?<tol>[A-Z])[A-Z0-9]*$",
+                ValueEncoding = "sig-zeros-R",
+                ToleranceMapJson = """{"F":1.0,"G":2.0,"J":5.0,"K":10.0,"M":20.0}""",
+                PackageMapJson = """{"1005":"0402","1608":"0603","2012":"0805","3216":"1206","3225":"1210","4532":"1812"}"""
+            },
+            new MpnProfile
+            {
+                Id = 18,
+                ComponentTypeId = 1,
+                Name = "Murata GRM",
+                Manufacturer = "Murata",
+                PatternRegex = @"^GRM(?<size>\d{2})[0-9A-Z](?<diel>R7|R6|5C|R1)(?<volt>[0-9][A-Z])(?<value>[0-9R]{3})(?<tol>[A-Z])[A-Z0-9]*$",
+                ValueEncoding = "sig-zeros-R",
+                ToleranceMapJson = """{"F":1.0,"G":2.0,"J":5.0,"K":10.0,"M":20.0}""",
+                DielectricMapJson = """{"R7":"X7R","R6":"X5R","5C":"C0G","R1":"X8R"}""",
+                PackageMapJson = """{"03":"0201","15":"0402","18":"0603","21":"0805","31":"1206","32":"1210","43":"1812","55":"2220"}"""
+            },
+            // === Diğer tipler — sadece numarada KESİN kodlu değer çıkarılır (Python 21/21) ===
+            // "literal" kodlama: değer numarada açık yazılı, insan-okur ayrıştırıcıyla SI'a.
+            new MpnProfile
+            {
+                // Regülatör 78xx: son iki hane = çıkış gerilimi (V). Negatif 79xx dahil değil.
+                Id = 19,
+                ComponentTypeId = 6,
+                Name = "Regülatör 78xx",
+                Manufacturer = "",
+                PatternRegex = @"^(?:LM|L|MC|UA|KA|NJM|TS|ST|HT|AZ)?78(?<value>05|06|08|09|10|12|15|18|24)[A-Z0-9/\-]*$",
+                ValueEncoding = "literal"
+            },
+            new MpnProfile
+            {
+                // AMS1117/LM1117/LD1117 -x.x: çıkış gerilimi açık ondalık ("-3.3"). ADJ eşleşmez.
+                Id = 20,
+                ComponentTypeId = 6,
+                Name = "Regülatör AMS1117/LM1117",
+                Manufacturer = "",
+                PatternRegex = @"^(?:AMS|LM|LD)1117[A-Z]*-(?<value>\d(?:\.\d+)?)[A-Z0-9/]*$",
+                ValueEncoding = "literal"
+            },
+            new MpnProfile
+            {
+                // Osilatör: frekans numarada açık yazılı ("16.000MHZ"). Kodlu seriler dahil değil.
+                Id = 21,
+                ComponentTypeId = 5,
+                Name = "Osilatör (literal frekans)",
+                Manufacturer = "",
+                PatternRegex = @"^.*?(?<value>\d+(?:\.\d+)?[MK]HZ).*$",
+                ValueEncoding = "literal"
+            },
+            new MpnProfile
+            {
+                // JST konnektör housing: XHP-4 → 4 pozisyon.
+                Id = 22,
+                ComponentTypeId = 7,
+                Name = "JST konnektör (housing)",
+                Manufacturer = "JST",
+                PatternRegex = @"^(?:XHP|PHR|ZHR|EHR|SMR)-(?<value>\d+)[A-Z0-9\-]*$",
+                ValueEncoding = "literal"
+            },
+            new MpnProfile
+            {
+                // JST konnektör header: B4B-XH-A → 4 pozisyon.
+                Id = 23,
+                ComponentTypeId = 7,
+                Name = "JST konnektör (header)",
+                Manufacturer = "JST",
+                PatternRegex = @"^[BS](?<value>\d+)B-(?:XH|PH|ZH|EH)[A-Z0-9\-]*$",
+                ValueEncoding = "literal"
             }
         );
     }

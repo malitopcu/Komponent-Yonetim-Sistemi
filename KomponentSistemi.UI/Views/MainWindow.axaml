@@ -67,6 +67,14 @@
                                 </StackPanel>
 
                                 <StackPanel Spacing="4">
+                                    <TextBlock Text="Alt Tür" FontSize="12" Opacity="0.7"/>
+                                    <ComboBox ItemsSource="{Binding Subtypes}"
+                                              SelectedItem="{Binding SelectedSubtype}"
+                                              PlaceholderText="Tümü"
+                                              HorizontalAlignment="Stretch"/>
+                                </StackPanel>
+
+                                <StackPanel Spacing="4">
                                     <TextBlock Text="{Binding PrimaryHeader}" FontSize="12" Opacity="0.7"/>
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <TextBox Text="{Binding MinPrimaryText}" PlaceholderText="min" Width="86"/>
@@ -578,62 +586,73 @@
                             <TextBlock Text="{Binding ImportReport}" TextWrapping="Wrap" FontSize="12"/>
                         </Expander>
 
-                        <!-- ===== Komponent Ekle (şimdilik direnç) ===== -->
-                        <TextBlock Text="Komponent Ekle (Direnç)" FontSize="18" FontWeight="Bold" Margin="0,16,0,0"/>
-                        <TextBlock Text="Alanları elle doldurup kaydet. MPN yazarsan 'MPN'den Doldur' bilinen üretici şemalarından çözebildiği alanları otomatik doldurur."
+                        <!-- ===== Komponent Ekle (dinamik, tüm tipler) ===== -->
+                        <TextBlock Text="Komponent Ekle" FontSize="18" FontWeight="Bold" Margin="0,16,0,0"/>
+                        <TextBlock Text="Tip seç, alanları doldur, kaydet. MPN yazıp 'MPN'den Doldur' dersen bilinen üretici şemalarından çözebildiği alanları otomatik doldurur."
                                    Opacity="0.6" FontSize="12" TextWrapping="Wrap"/>
 
                         <Border Background="{DynamicResource AppSurfaceBrush}"
                                 BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
                                 CornerRadius="12" Padding="16">
                             <StackPanel Spacing="12">
+                                <!-- Tip + MPN + üretici -->
                                 <StackPanel Orientation="Horizontal" Spacing="16">
                                     <StackPanel Spacing="4">
+                                        <TextBlock Text="Tip" FontSize="12" Opacity="0.7"/>
+                                        <ComboBox ItemsSource="{Binding Types}" SelectedItem="{Binding AddType}" MinWidth="140">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="svc:ComponentTypeDto">
+                                                    <TextBlock Text="{Binding Name}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
                                         <TextBlock Text="MPN" FontSize="12" Opacity="0.7"/>
-                                        <TextBox Text="{Binding DatasheetMpn}" PlaceholderText="örn RC0603FR-071K07L" Width="220"/>
+                                        <TextBox Text="{Binding AddMpn}" PlaceholderText="örn RC0603FR-071K07L" Width="220"/>
                                     </StackPanel>
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="Üretici" FontSize="12" Opacity="0.7"/>
-                                        <TextBox Text="{Binding DatasheetManufacturer}" PlaceholderText="örn Yageo" Width="200"/>
+                                        <TextBox Text="{Binding AddManufacturer}" PlaceholderText="örn Yageo" Width="180"/>
                                     </StackPanel>
                                     <Button Content="MPN'den Doldur" Command="{Binding DecodeComponentMpnCommand}"
                                             VerticalAlignment="Bottom"/>
                                 </StackPanel>
 
-                                <StackPanel Orientation="Horizontal" Spacing="16">
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Text="Direnç (Ω)" FontSize="12" Opacity="0.7"/>
-                                        <TextBox Text="{Binding DsOhmsText}" Width="120"/>
+                                <!-- Tip uyuşmazlığı uyarısı -->
+                                <Border IsVisible="{Binding HasTypeMismatch}"
+                                        Background="{DynamicResource AppDropFillBrush}"
+                                        CornerRadius="8" Padding="10">
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <TextBlock Text="{Binding MismatchType.Name, StringFormat='Bu MPN {0} profiline uyuyor. Tipi değiştireyim mi?'}"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <Button Content="Evet, değiştir" Command="{Binding SwitchToMismatchTypeCommand}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Text="Güç (W)" FontSize="12" Opacity="0.7"/>
-                                        <TextBox Text="{Binding DsPowerText}" Width="100"/>
-                                    </StackPanel>
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Text="Tolerans (%)" FontSize="12" Opacity="0.7"/>
-                                        <TextBox Text="{Binding DsToleranceText}" Width="100"/>
-                                    </StackPanel>
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Text="TCR (ppm/°C)" FontSize="12" Opacity="0.7"/>
-                                        <TextBox Text="{Binding DsTcrText}" Width="100"/>
-                                    </StackPanel>
-                                </StackPanel>
+                                </Border>
 
-                                <StackPanel Orientation="Horizontal" Spacing="16">
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Text="Kompozisyon" FontSize="12" Opacity="0.7"/>
-                                        <TextBox Text="{Binding DsComposition}" Width="180"/>
-                                    </StackPanel>
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Text="Paket (isteğe bağlı)" FontSize="12" Opacity="0.7"/>
-                                        <TextBox Text="{Binding DsPackage}" Width="140"/>
-                                    </StackPanel>
+                                <!-- Dinamik alanlar (seçili tipin parametreleri) -->
+                                <ItemsControl ItemsSource="{Binding AddFields}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ComponentFieldVm">
+                                            <StackPanel Spacing="4" Margin="0,0,16,10">
+                                                <TextBlock Text="{Binding Label}" FontSize="12" Opacity="0.7"/>
+                                                <TextBox Text="{Binding Value}" Width="150"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Content="Kaydet" Classes="accent"
-                                            Command="{Binding SaveDatasheetComponentCommand}"
-                                            VerticalAlignment="Bottom"/>
+                                            Command="{Binding SaveComponentCommand}"/>
                                 </StackPanel>
 
-                                <TextBlock Text="{Binding DatasheetStatus}" FontSize="12" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding AddStatus}" FontSize="12" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
 

@@ -485,3 +485,4 @@ $RECYCLE.BIN/
 components.db
 components.db-shm
 components.db-wal
+components.db.*

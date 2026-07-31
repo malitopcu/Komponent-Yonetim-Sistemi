@@ -201,9 +201,15 @@ sealed class Program
                     : $"{mpn}: çözülemedi (profil eşleşmedi, öneri de yok)");
                 continue;
             }
+            // Generic çıktı (tip-bağımsız); birincil/ikincil ham SI olarak basılır.
+            var extras = new List<string>();
+            if (d.TolerancePercent is double t) extras.Add($"±{t}%");
+            if (d.TcrPpm is int tc) extras.Add($"{tc}ppm/°C");
+            if (d.Dielectric is string di) extras.Add(di);
+            if (d.Package is string pk) extras.Add(pk);
             Console.WriteLine(
-                $"{mpn}: {d.Ohms} Ω, ±{d.TolerancePercent?.ToString() ?? "?"} %, {d.TcrPpm?.ToString() ?? "?"} ppm/°C, " +
-                $"{d.PowerW?.ToString() ?? "?"} W  [{d.ProfileName}]");
+                $"{mpn}: tip={d.ComponentTypeId} birincil={d.PrimaryValueSi} ikincil={d.SecondaryValueSi?.ToString() ?? "-"} " +
+                $"{string.Join(" ", extras)}  [{d.ProfileName} · {d.Manufacturer}]");
         }
     }
 

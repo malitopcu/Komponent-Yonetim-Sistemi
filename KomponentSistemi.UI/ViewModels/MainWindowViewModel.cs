@@ -27,16 +27,18 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string _schematicBomStatus = "";
     public ObservableCollection<SchematicBomRow> SchematicBomRows { get; } = new();
 
-    // Komponent Ekle formu (şimdilik dirençlere özel); MPN çözücü opsiyonel hızlandırıcı.
-    [ObservableProperty] private string? _datasheetMpn;
-    [ObservableProperty] private string? _datasheetManufacturer;
-    [ObservableProperty] private string _datasheetStatus = "";
-    [ObservableProperty] private string? _dsOhmsText;
-    [ObservableProperty] private string? _dsPowerText;
-    [ObservableProperty] private string? _dsToleranceText;
-    [ObservableProperty] private string? _dsTcrText;
-    [ObservableProperty] private string? _dsComposition;
-    [ObservableProperty] private string? _dsPackage;
+    // Komponent Ekle formu — tip seçilince alanlar dinamik kurulur; MPN opsiyonel hızlandırıcı.
+    [ObservableProperty] private ComponentTypeDto? _addType;
+    [ObservableProperty] private string? _addMpn;
+    [ObservableProperty] private string? _addManufacturer;
+    [ObservableProperty] private string _addStatus = "";
+    public ObservableCollection<ComponentFieldVm> AddFields { get; } = new();
+
+    // Tip uyuşmazlığı: seçili tip ile MPN'in çözüldüğü tip farklıysa uyar.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTypeMismatch))]
+    private ComponentTypeDto? _mismatchType;
+    public bool HasTypeMismatch => MismatchType != null;
 
     [ObservableProperty] private ComponentDetailDto? _compareA;
     [ObservableProperty] private ComponentDetailDto? _compareB;
@@ -57,6 +59,24 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty] private ComponentTypeDto? _selectedType;
     [ObservableProperty] private string? _searchText;
+
+    // Alt tür filtresi (arama panosu). İlk öğe "(Tümü)" = filtre kapalı.
+    private const string AllSubtypes = "(Tümü)";
+    public ObservableCollection<string> Subtypes { get; } = new();
+    [ObservableProperty] private string? _selectedSubtype;
+
+    // Tip değişince o tipin alt türlerini envanterden tazele.
+    partial void OnSelectedTypeChanged(ComponentTypeDto? value) => _ = RefreshSubtypesAsync();
+
+    private async Task RefreshSubtypesAsync()
+    {
+        int? tid = (SelectedType == null || SelectedType.Id == 0) ? null : SelectedType.Id;
+        var subs = await _query.GetSubtypesAsync(tid);
+        Subtypes.Clear();
+        Subtypes.Add(AllSubtypes);
+        foreach (var s in subs) Subtypes.Add(s);
+        SelectedSubtype = AllSubtypes;
+    }
 
     [ObservableProperty] private string _resultCountText = "";
 
@@ -308,89 +328,199 @@ public partial class MainWindowViewModel : ViewModelBase
         SchematicBomStatus = $"{picked.Count} komponent projeye eklendi" + (skipped > 0 ? $", {skipped} atlandı." : ".");
     }
 
+    // Tip programatik değiştirilirken (tip değiştir düğmesi) rebuild'i biz yönetiyoruz.
+    private bool _suppressAddRebuild;
+
+    // Tip seçilince o tipin alanlarını ParameterDefinitions'tan yeniden kur.
+    partial void OnAddTypeChanged(ComponentTypeDto? value)
+    {
+        MismatchType = null;
+        if (_suppressAddRebuild) return;
+        _ = RebuildAddFieldsAsync(value);
+    }
+
+    private async Task RebuildAddFieldsAsync(ComponentTypeDto? type)
+    {
+        AddFields.Clear();
+        if (type is null) return;
+
+        var defs = await _query.GetParametersAsync(type.Id);
+        foreach (var d in defs)
+        {
+            bool numeric = d.DataType == "numeric";
+            string label = string.IsNullOrEmpty(d.Unit) ? d.DisplayName : $"{d.DisplayName} ({d.Unit})";
+            AddFields.Add(new ComponentFieldVm
+            {
+                Key = d.Key, Label = label, Unit = d.Unit,
+                IsNumeric = numeric, HotColumn = d.HotColumn,
+            });
+        }
+    }
+
     // MPN'den doldur: bilinen üretici şemalarıyla çözer, çözebildiği alanları yazar.
-    // Çözemezse standart kalıplardan öneri verir; hiçbir alan uydurulmaz.
+    // Çözemezse standart kalıptan öneri verir; hiçbir alan uydurulmaz.
     [RelayCommand]
     private void DecodeComponentMpn()
     {
-        if (string.IsNullOrWhiteSpace(DatasheetMpn))
+        MismatchType = null;
+        if (AddType is null) { AddStatus = "Önce komponent tipini seç."; return; }
+        if (string.IsNullOrWhiteSpace(AddMpn))
         {
-            DatasheetStatus = "Önce MPN yaz (ya da alanları elle doldurup kaydet).";
+            AddStatus = "Önce MPN yaz (ya da alanları elle doldurup kaydet).";
             return;
         }
 
-        // Önceki MPN'den kalan değerler yenisine aitmiş gibi durmasın: önce temizle.
-        ClearComponentForm(clearMpn: false);
+        // "MPN'den Doldur" = her şeyi MPN'den türet: önceki değerler + üretici sıfırlanır,
+        // yoksa eski üretici/değer yeni MPN'e aitmiş gibi kalır.
+        foreach (var f in AddFields) f.Value = null;
+        AddManufacturer = null;
 
-        var res = ServiceFactory.CreateDatasheetComponentService().DecodeMpn(DatasheetMpn);
+        var res = ServiceFactory.CreateDatasheetComponentService().DecodeMpn(AddMpn);
 
         if (res.Decoded is { } d)
         {
-            DsOhmsText = d.Ohms.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            DsToleranceText = d.TolerancePercent?.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            DsTcrText = d.TcrPpm?.ToString();
-            DsPowerText = d.PowerW?.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            if (!string.IsNullOrWhiteSpace(d.Package)) DsPackage = d.Package;
-            if (string.IsNullOrWhiteSpace(DatasheetManufacturer) && !string.IsNullOrWhiteSpace(d.Manufacturer))
-                DatasheetManufacturer = d.Manufacturer;
-            DatasheetStatus = $"MPN çözüldü [{d.ProfileName}] — boş kalan alanları elle tamamla.";
+            // Seçili tip ile çözülen tip farklıysa doldurmadan uyar (yanlış alanlara yazmayalım).
+            if (d.ComponentTypeId != AddType.Id)
+            {
+                MismatchType = Types.FirstOrDefault(t => t.Id == d.ComponentTypeId);
+                AddStatus = $"Bu MPN {MismatchType?.Name ?? "başka bir tip"} profiline uyuyor [{d.ProfileName}].";
+                return;
+            }
+
+            FillFieldsFromDecode(d);
+            if (!string.IsNullOrWhiteSpace(d.Manufacturer)) AddManufacturer = d.Manufacturer;
+            AddStatus = $"MPN çözüldü [{d.ProfileName}] — boş kalan alanları elle tamamla.";
             return;
         }
 
-        if (res.Suggestions.Count == 1)
+        // Öneri katmanı değeri direnç mantığıyla üretir (kod→Ω). Yalnız Direnç tipinde
+        // anlamlı; başka tipte (kondansatör/regülatör...) Ω önerisi yanıltıcı olur, gösterilmez.
+        if (AddType.Id == 2 && res.Suggestions.Count > 0)
         {
-            DsOhmsText = res.Suggestions[0].Ohms.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            DatasheetStatus = $"Profil yok; standart kalıptan ÖNERİ ({res.Suggestions[0].Reason}) — kontrol et.";
+            if (res.Suggestions.Count == 1)
+            {
+                SetHot("primary", res.Suggestions[0].Ohms);
+                AddStatus = $"Profil yok; standart kalıptan ÖNERİ ({res.Suggestions[0].Reason}) — kontrol et.";
+            }
+            else
+            {
+                string list = string.Join(", ", res.Suggestions.Select(x => $"{x.Ohms:g} Ω ({x.Reason})"));
+                AddStatus = $"Profil yok; olası değer(ler): {list} — kontrol edip elle gir.";
+            }
             return;
         }
-
-        DatasheetStatus = res.Suggestions.Count > 1
-            ? "Profil yok; adaylar: " + string.Join(", ", res.Suggestions.Select(x =>
-                  $"{x.Ohms.ToString(System.Globalization.CultureInfo.InvariantCulture)} Ω ({x.Reason})"))
-            : "MPN çözülemedi — alanları elle doldur.";
+        AddStatus = "MPN çözülemedi (bu seri için profil yok) — alanları elle doldur.";
     }
 
     [RelayCommand]
-    private async Task SaveDatasheetComponentAsync()
+    private async Task SwitchToMismatchTypeAsync()
     {
-        var svc = ServiceFactory.CreateDatasheetComponentService();
-        var (ok, message) = await svc.SaveAsync(new DatasheetComponentService.SaveRequest
-        {
-            Mpn = DatasheetMpn ?? "",
-            Manufacturer = DatasheetManufacturer ?? "",
-            Ohms = ParseUserDouble(DsOhmsText),
-            PowerW = ParseUserDouble(DsPowerText),
-            TolerancePercent = ParseUserDouble(DsToleranceText),
-            TcrPpm = int.TryParse(DsTcrText?.Trim(), out var tcr) ? tcr : null,
-            Composition = DsComposition,
-            Package = DsPackage,
-        });
+        var target = MismatchType;
+        if (target is null) return;
+        MismatchType = null;
 
-        DatasheetStatus = message;
+        // Tipi normal özellikten set ediyoruz ama rebuild'i bastırıyoruz; böylece
+        // alanları burada TEK sefer, bekleyerek kuruyoruz (yarış ve çift-ekleme önlenir).
+        _suppressAddRebuild = true;
+        AddType = target;
+        _suppressAddRebuild = false;
+        await RebuildAddFieldsAsync(target);
+
+        DecodeComponentMpn();     // artık tip uyuyor ve alanlar hazır, doldurur
+    }
+
+    // Çözülen değerleri alan anahtarlarına yerleştirir (birim SI; insan-okur gösterilir).
+    // Tip-bağımsız: hangi alan varsa dolar, olmayan (ör. kondansatörde tcr) atlanır.
+    private void FillFieldsFromDecode(DecodedMpn d)
+    {
+        SetHot("primary", d.PrimaryValueSi);
+        SetHot("secondary", d.SecondaryValueSi);
+        SetKey("dielectric", d.Dielectric);
+        SetKey("tcr", d.TcrPpm);
+        if (d.TolerancePercent is double tol)
+            SetKey("tolerance", "±" + tol.ToString(System.Globalization.CultureInfo.InvariantCulture) + "%");
+        if (!string.IsNullOrWhiteSpace(d.Package)) SetKey("package", d.Package);
+    }
+
+    private void SetHot(string hot, double? si)
+    {
+        if (si is null) return;
+        var f = AddFields.FirstOrDefault(x => x.HotColumn == hot);
+        if (f != null) f.Value = FormatField(si.Value, f.Unit);
+    }
+
+    private void SetKey(string key, object? val)
+    {
+        if (val is null) return;
+        var f = AddFields.FirstOrDefault(x => x.Key == key);
+        if (f is null) return;
+        f.Value = f.IsNumeric && val is IConvertible
+            ? FormatField(Convert.ToDouble(val), f.Unit)
+            : val.ToString();
+    }
+
+    // Öneri katmanı: birincil sayısal alana ham SI değeri koy.
+    private void SetFieldValue(string _, double si)
+    {
+        var f = AddFields.FirstOrDefault(x => x.HotColumn == "primary");
+        if (f != null) f.Value = FormatField(si, f.Unit);
+    }
+
+    // SI değeri insan-okur ama birimsiz gösterir ("10 k"); alan etiketinde birim zaten var.
+    private static string FormatField(double si, string? unit)
+    {
+        string s = KomponentSistemi.Services.ValueNormalizer.FormatSi(si, unit);
+        return string.IsNullOrEmpty(unit) ? s : s.Replace(unit, "").Trim();
+    }
+
+    [RelayCommand]
+    private async Task SaveComponentAsync()
+    {
+        if (AddType is null) { AddStatus = "Önce komponent tipini seç."; return; }
+
+        var norm = new KomponentSistemi.Services.ValueNormalizer();
+        double? primary = null, secondary = null;
+        var paramValues = new Dictionary<string, object?>();
+
+        foreach (var f in AddFields)
+        {
+            if (string.IsNullOrWhiteSpace(f.Value)) continue;
+            if (f.IsNumeric)
+            {
+                double? si = norm.NormalizeNumeric(f.Value);
+                if (si is null) continue;
+                if (f.HotColumn == "primary") primary = si;
+                else if (f.HotColumn == "secondary") secondary = si;
+                else paramValues[f.Key] = si;
+            }
+            else
+            {
+                var cat = norm.NormalizeCategorical(f.Value);
+                if (cat != null) paramValues[f.Key] = cat;
+            }
+        }
+
+        var (ok, message) = await ServiceFactory.CreateDatasheetComponentService()
+            .SaveAsync(new DatasheetComponentService.SaveRequest
+            {
+                ComponentTypeId = AddType.Id,
+                Mpn = AddMpn ?? "",
+                Manufacturer = AddManufacturer ?? "",
+                PrimaryValueSi = primary,
+                SecondaryValueSi = secondary,
+                Params = paramValues,
+            });
+
+        AddStatus = message;
         if (!ok) return; // hata ekranda kalsın, form silinmesin
 
-        ClearComponentForm(clearMpn: true);
+        AddMpn = null;
+        AddManufacturer = null;
+        MismatchType = null;
+        foreach (var f in AddFields) f.Value = null;
         await Task.Delay(4000);
-        if (DatasheetStatus == message) DatasheetStatus = ""; // araya yeni mesaj girdiyse dokunma
+        if (AddStatus == message) AddStatus = "";
     }
-
-    private void ClearComponentForm(bool clearMpn)
-    {
-        if (clearMpn) DatasheetMpn = null;
-        DatasheetManufacturer = null;
-        DsOhmsText = null;
-        DsPowerText = null;
-        DsToleranceText = null;
-        DsTcrText = null;
-        DsComposition = null;
-        DsPackage = null;
-    }
-
-    // Kutulara "0,5" de "0.5" de yazılabilsin.
-    private static double? ParseUserDouble(string? s)
-        => double.TryParse(s?.Trim().Replace(',', '.'),
-            System.Globalization.NumberStyles.Float,
-            System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : null;
 
     private static string ValueLabelFor(SchematicSuggestion g)
     {
@@ -469,6 +599,9 @@ public partial class MainWindowViewModel : ViewModelBase
         foreach (var t in types)
             FilterTypes.Add(t);
 
+        // Komponent Ekle formu açılışta Direnç ile gelsin (alanları kurar).
+        AddType = Types.FirstOrDefault(t => t.Id == 2) ?? Types.FirstOrDefault();
+
         foreach (var h in await _query.GetTypeHeadersAsync())
             _typeHeaders[h.TypeId] = (h.PrimaryHeader, h.SecondaryHeader);
 
@@ -508,6 +641,9 @@ public partial class MainWindowViewModel : ViewModelBase
             MaxSecondary = _normalizer.NormalizeNumeric(MaxSecondaryText),
         };
 
+        if (!string.IsNullOrEmpty(SelectedSubtype) && SelectedSubtype != AllSubtypes)
+            criteria.CategoricalFilters["subtype"] = SelectedSubtype;
+
         FillComponents(await _search.SearchAsync(criteria));
         UpdateHeaders(typeId);   // başlıklar sonuçlarla birlikte (Ara'ya basınca) değişsin
         UpdateTypeInfo(typeId);
@@ -518,6 +654,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task ResetAsync()
     {
         SelectedType = FilterTypes.FirstOrDefault();
+        SelectedSubtype = AllSubtypes;
         SearchText = null;
         MinPrimaryText = null;
         MaxPrimaryText = null;

@@ -7,10 +7,14 @@ namespace KomponentSistemi.Services;
 
 public class DecodedMpn
 {
-    public double Ohms { get; init; }
+    public int ComponentTypeId { get; init; }
+    // Birincil/ikincil değer, tipin SI temel biriminde:
+    //   Direnç Ω/W · Kondansatör F/V · Regülatör V · Osilatör Hz · Konnektör adet.
+    public double? PrimaryValueSi { get; init; }
+    public double? SecondaryValueSi { get; init; }
     public double? TolerancePercent { get; init; }
-    public int? TcrPpm { get; init; }
-    public double? PowerW { get; init; }
+    public int? TcrPpm { get; init; }           // direnç
+    public string? Dielectric { get; init; }    // kondansatör
     public string? Package { get; init; }
     public string Manufacturer { get; init; } = "";
     public string ProfileName { get; init; } = "";
@@ -46,25 +50,63 @@ public static class MpnDecoder
 
         if (!g.Success) return null;
 
-        double? ohms = DecodeValue(g.Groups["value"].Value, p.ValueEncoding);
-        if (ohms is null) return null;
+        double? value = DecodeValue(g.Groups["value"].Value, p.ValueEncoding);
+        if (value is null) return null;
 
         var tolMap = ReadMap<double>(p.ToleranceMapJson);
-        var tcrMap = ReadMap<int>(p.TcrMapJson);
-        var powMap = ReadMap<double>(p.PowerMapJson);
         var pkgMap = ReadMap<string>(p.PackageMapJson);
+        string? pkg = g.Groups["size"].Success && pkgMap.TryGetValue(g.Groups["size"].Value, out var pk) ? pk : null;
+
+        // Birincil değer: kondansatörde "value" pikofarad → Farad; diğer tiplerde
+        // value zaten SI (literal kodlama ya da Ω hane kodu).
+        double primary = p.ComponentTypeId == 1 ? value.Value * 1e-12 : value.Value;
+
+        double? secondary = null;
+        string? diel = null;
+        int? tcr = null;
+
+        if (p.ComponentTypeId == 1) // Kondansatör: ikincil = gerilim, + dielektrik
+        {
+            var voltMap = ReadMap<double>(p.VoltageMapJson);
+            string vCode = g.Groups["volt"].Value;
+            secondary = voltMap.Count > 0
+                ? (voltMap.TryGetValue(vCode, out var vm) ? vm : (double?)null)
+                : (EiaVoltage.TryGetValue(vCode, out var ev) ? ev : (double?)null);
+
+            var dielMap = ReadMap<string>(p.DielectricMapJson);
+            string dCode = g.Groups["diel"].Value;
+            diel = dCode.Length == 0 ? null
+                : dielMap.Count > 0 ? (dielMap.TryGetValue(dCode, out var dm) ? dm : dCode)
+                : dCode; // harita yoksa kod zaten açık ad (TDK: "X7R")
+        }
+        else if (p.ComponentTypeId == 2) // Direnç: ikincil = güç, + TCR
+        {
+            secondary = Lookup(ReadMap<double>(p.PowerMapJson), g.Groups["power"]);
+            tcr = Lookup(ReadMap<int>(p.TcrMapJson), g.Groups["tcr"]);
+        }
+        // Diğer tipler (regülatör/osilatör/konnektör): sadece birincil + tolerans + paket.
 
         return new DecodedMpn
         {
-            Ohms = ohms.Value,
+            ComponentTypeId = p.ComponentTypeId,
+            PrimaryValueSi = primary,
+            SecondaryValueSi = secondary,
+            Dielectric = diel,
+            TcrPpm = tcr,
             TolerancePercent = Lookup(tolMap, g.Groups["tol"]),
-            TcrPpm = Lookup(tcrMap, g.Groups["tcr"]),
-            PowerW = Lookup(powMap, g.Groups["power"]),
-            Package = g.Groups["size"].Success && pkgMap.TryGetValue(g.Groups["size"].Value, out var pkg) ? pkg : null,
+            Package = pkg,
             Manufacturer = p.Manufacturer,
             ProfileName = p.Name,
         };
     }
+
+    // EIA standart gerilim kodları (MLCC); üretici-bağımsız, motora gömülü.
+    private static readonly Dictionary<string, double> EiaVoltage = new()
+    {
+        ["0G"] = 4, ["0J"] = 6.3, ["1A"] = 10, ["1C"] = 16, ["1D"] = 20, ["1E"] = 25,
+        ["1V"] = 35, ["1H"] = 50, ["1J"] = 63, ["2A"] = 100, ["2D"] = 200,
+        ["2E"] = 250, ["2W"] = 450, ["2H"] = 500,
+    };
 
     // Profil yokken MPN içinde standart değer kalıpları arar (öneri, kesin değil).
     // Kurallar biçime dayalı: IEC 60062 R/K/M ve anlamlı-hane+sıfır kodları.
@@ -132,6 +174,24 @@ public static class MpnDecoder
                 if (t.Length > 0 && t.All(char.IsDigit))
                     return ParseOrNull(t);
                 return null;
+
+            // Değer numarada açık yazılı: "3.3", "05", "16.000MHZ", "4". Nokta HER ZAMAN
+            // ondalık (NormalizeNumeric'in binlik-ayracı sezgisi burada yanlış olur:
+            // "16.000MHZ" 16 MHz'dir, 16000 değil). Ön ek varsa SI çarpanı uygulanır.
+            case "literal":
+                var lm = Regex.Match(t, @"^([-+]?\d+(?:\.\d+)?)\s*([A-ZΜ]*)$");
+                if (!lm.Success) return null;
+                if (!double.TryParse(lm.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double lnum))
+                    return null;
+                string lunit = lm.Groups[2].Value;
+                if (lunit.Length > 0)
+                    lnum *= lunit[0] switch
+                    {
+                        'G' => 1e9, 'M' => 1e6, 'K' => 1e3,
+                        'U' or 'Μ' => 1e-6, 'N' => 1e-9, 'P' => 1e-12,
+                        _ => 1,
+                    };
+                return lnum;
 
             default:
                 return null;

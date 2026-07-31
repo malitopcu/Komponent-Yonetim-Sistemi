@@ -38,35 +38,26 @@ public class DatasheetComponentService
 
     public class SaveRequest
     {
+        public int ComponentTypeId { get; set; }
         public string Mpn { get; set; } = "";
         public string Manufacturer { get; set; } = "";
-        public double? Ohms { get; set; }
-        public double? PowerW { get; set; }
-        public double? TolerancePercent { get; set; }
-        public int? TcrPpm { get; set; }
-        public string? Composition { get; set; }
-        public string? Package { get; set; }
+        public double? PrimaryValueSi { get; set; }
+        public double? SecondaryValueSi { get; set; }
+        // HotColumn dışı parametreler (key → sayısal SI değer ya da metin).
+        public Dictionary<string, object?> Params { get; set; } = new();
     }
 
-    // Ok=true ise mesaj kısa onay ("Eklendi"), false ise ekranda kalması gereken hata.
+    // Tipe bağımsız kayıt: CSV import ile aynı upsert anahtarı (Mpn + Manufacturer).
+    // Ok=true ise mesaj kısa onay, false ise ekranda kalması gereken hata.
     public async Task<(bool Ok, string Message)> SaveAsync(SaveRequest req)
     {
         string mpn = req.Mpn.Trim();
         string manufacturer = req.Manufacturer.Trim();
         if (mpn.Length == 0) return (false, "MPN boş olamaz.");
-        if (req.Ohms is null) return (false, "Direnç değeri boş olamaz (MPN çözülemediyse elle gir).");
+        if (req.ComponentTypeId <= 0) return (false, "Önce komponent tipini seç.");
+        if (req.PrimaryValueSi is null) return (false, "Birincil değer boş olamaz (MPN çözülemediyse elle gir).");
 
-        var jsonParams = new Dictionary<string, object?>();
-        if (req.TolerancePercent is double tol)
-            jsonParams["tolerance"] = _normalizer.NormalizeCategorical(
-                "±" + tol.ToString(CultureInfo.InvariantCulture) + "%");
-        if (req.TcrPpm is int tcr) jsonParams["tcr"] = tcr;
-        if (_normalizer.NormalizeCategorical(req.Composition) is string comp)
-            jsonParams["composition"] = comp;
-        if (_normalizer.NormalizeCategorical(req.Package) is string pkg)
-            jsonParams["package"] = pkg;
-
-        string paramsJson = System.Text.Json.JsonSerializer.Serialize(jsonParams);
+        string paramsJson = System.Text.Json.JsonSerializer.Serialize(req.Params);
 
         var existing = await _db.Components
             .FirstOrDefaultAsync(c => c.Mpn == mpn && c.Manufacturer == manufacturer);
@@ -75,19 +66,20 @@ public class DatasheetComponentService
         {
             _db.Components.Add(new Component
             {
-                ComponentTypeId = 2, // Direnç — bu form şimdilik dirençlere özel
+                ComponentTypeId = req.ComponentTypeId,
                 Mpn = mpn,
                 Manufacturer = manufacturer,
-                PrimaryValueSi = req.Ohms,
-                SecondaryValueSi = req.PowerW,
+                PrimaryValueSi = req.PrimaryValueSi,
+                SecondaryValueSi = req.SecondaryValueSi,
                 ParamsJson = paramsJson,
             });
             await _db.SaveChangesAsync();
             return (true, $"Eklendi: {mpn} ({manufacturer})");
         }
 
-        existing.PrimaryValueSi = req.Ohms;
-        existing.SecondaryValueSi = req.PowerW;
+        existing.ComponentTypeId = req.ComponentTypeId;
+        existing.PrimaryValueSi = req.PrimaryValueSi;
+        existing.SecondaryValueSi = req.SecondaryValueSi;
         existing.ParamsJson = paramsJson;
         await _db.SaveChangesAsync();
         return (true, $"Güncellendi: {mpn} ({manufacturer})");

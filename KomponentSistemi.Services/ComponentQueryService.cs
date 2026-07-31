@@ -48,6 +48,42 @@ public class ComponentQueryService
             .ToListAsync();
     }
 
+    // Envanterde var olan alt tür değerleri (arama filtresi için). typeId verilirse
+    // o tipe kısıtlar; null ise tümü. Boş/null olanlar elenir, benzersiz + sıralı döner.
+    public async Task<List<string>> GetSubtypesAsync(int? typeId)
+    {
+        IQueryable<Component> q = _db.Components;
+        if (typeId.HasValue)
+            q = q.Where(c => c.ComponentTypeId == typeId.Value);
+
+        var raw = await q
+            .Select(c => SqlJson.Extract(c.ParamsJson, "$.subtype"))
+            .ToListAsync();
+
+        return raw.Where(s => !string.IsNullOrEmpty(s))
+                  .Select(s => s!)
+                  .Distinct()
+                  .OrderBy(s => s, StringComparer.CurrentCultureIgnoreCase)
+                  .ToList();
+    }
+
+    // Bir tipin form alanları (dinamik Komponent Ekle için), tanım sırasıyla.
+    public async Task<List<ParameterFieldDto>> GetParametersAsync(int typeId)
+    {
+        return await _db.ParameterDefinitions
+            .Where(p => p.ComponentTypeId == typeId)
+            .OrderBy(p => p.Id)
+            .Select(p => new ParameterFieldDto
+            {
+                Key = p.Key,
+                DisplayName = p.DisplayName,
+                Unit = p.Unit,
+                DataType = p.DataType,
+                HotColumn = p.HotColumn,
+            })
+            .ToListAsync();
+    }
+
     // Her tip için sıcak sütun etiketleri (primary/secondary tanım adı + birim).
     public async Task<List<TypeHeaderDto>> GetTypeHeadersAsync()
     {
